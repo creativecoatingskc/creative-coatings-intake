@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: creative-coatings-intake
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
