@@ -334,13 +334,22 @@ async function callTool(name,args){
 
 function renderSummary(){
   const stat=status(); const summary=makeSummary(); const cls=stat==='READY FOR QUOTE'?'green':stat==='ESTIMATOR REVIEW REQUIRED'?'yellow':'red';
-  app.innerHTML=`<div class="top"><div><div class="brand">Creative Coatings</div><div class="small">Project Intake Review</div></div></div><span class="status ${cls}">${escapeHtml(stat)}</span><div class="summary">${escapeHtml(summary)}</div><div class="actions"><button class="secondary" id="back">Back</button><div class="right"><button class="primary" id="submit">Submit Intake</button></div></div>`;
+  app.innerHTML=`<div class="top"><div><div class="brand">Creative Coatings</div><div class="small">Project Intake Review</div></div></div><span class="status ${cls}">${escapeHtml(stat)}</span><div class="summary">${escapeHtml(summary)}</div><div class="actions"><button class="secondary" id="back">Back</button><div class="right"><button class="primary" id="submit">Send Summary to Chat</button></div></div>`;
   document.getElementById('back').onclick=()=>{state.idx=Math.max(0,allQuestions().length-1);persist();render();};
   document.getElementById('submit').onclick=async()=>{
-    const btn=document.getElementById('submit'); btn.disabled=true; btn.textContent='Submitting...';
+    const btn=document.getElementById('submit'); btn.disabled=true; btn.textContent='Sending...';
     try{
-      await callTool('submit_project_intake',{customer:{name:state.answers.customer_name||'',phone:state.answers.phone||'',email:state.answers.email||''},category:state.answers.category||'',answers:state.answers,status:stat,missing:missingItems(),summary});
-      btn.textContent='Submitted';
+      if(window.openai?.sendFollowUpMessage){
+        await window.openai.sendFollowUpMessage({prompt:`Project intake complete. Use this Printavo-ready summary:
+
+${summary}`});
+        btn.textContent='Sent to Chat';
+      }else if(navigator.clipboard?.writeText){
+        await navigator.clipboard.writeText(summary);
+        btn.textContent='Summary Copied';
+      }else{
+        btn.textContent='Summary Ready';
+      }
     }catch(e){ btn.disabled=false; btn.textContent='Try Again'; }
   };
 }
