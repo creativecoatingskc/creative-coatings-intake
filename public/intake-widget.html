@@ -409,22 +409,23 @@ function renderSummary(){
   app.innerHTML=`<div class="top"><div><div class="brand">Creative Coatings</div><div class="small">Project Intake Review</div></div></div><span class="status ${cls}">${escapeHtml(stat)}</span><div class="summary">${escapeHtml(summary)}</div><div class="actions"><button class="secondary" id="back">Back</button><div class="right"><button class="primary" id="submit">Submit Job</button></div></div>`;
   document.getElementById('back').onclick=()=>{state.idx=Math.max(0,allQuestions().length-1);persist();render();};
   document.getElementById('submit').onclick=async()=>{
-    const btn=document.getElementById('submit'); btn.disabled=true; btn.textContent='Sending...';
+    const btn=document.getElementById('submit');
+    btn.disabled=true;
+    btn.textContent='Submitting...';
+    const a=state.answers;
     try{
-      if(window.openai?.sendFollowUpMessage){
-        await window.openai.sendFollowUpMessage({prompt:`Project intake complete. Use this Printavo-ready summary:
-
-${summary}`});
-        btn.textContent='Sent to Chat';
-      }else if(navigator.clipboard?.writeText){
-        await navigator.clipboard.writeText(summary);
-        btn.textContent='Summary Copied';
-      }else{
-        btn.textContent='Summary Ready';
-      }
-    }catch(e){ btn.disabled=false; btn.textContent='Try Again'; }
-  };
-}
+      await callTool('submit_project_intake',{
+        summary: summary,
+        customerName: [a.first_name,a.last_name].filter(Boolean).join(' '),
+        projectType: a.category || 'New Job',
+        intakeStatus: stat
+      });
+      btn.textContent='Job Submitted Successfully';
+    }catch(e){
+      btn.disabled=false;
+      btn.textContent='Try Again';
+    }
+  };}
 
 render();
 </script>
