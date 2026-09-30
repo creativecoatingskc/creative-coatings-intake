@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
+import nodemailer from "nodemailer";
+import { z } from "zod";
 import {
   registerAppResource,
   registerAppTool,
@@ -12,6 +14,47 @@ const PORT = Number(process.env.PORT ?? 8787);
 const MCP_PATH = "/mcp";
 const WIDGET_URI = "ui://creative-coatings/project-intake-v2.html";
 const widgetHtml = readFileSync("public/intake-widget.html", "utf8");
+
+const SMTP_HOST = process.env.SMTP_HOST ?? "smtp.gmail.com";
+const SMTP_PORT = Number(process.env.SMTP_PORT ?? 465);
+const SMTP_USER = process.env.SMTP_USER ?? "";
+const SMTP_PASS = process.env.SMTP_PASS ?? "";
+const INTAKE_TO = process.env.INTAKE_TO ?? "info@creativecoatingskc.com";
+const INTAKE_FROM = process.env.INTAKE_FROM ?? SMTP_USER;
+
+async function sendIntakeEmail({ summary, customerName, projectType, intakeStatus }) {
+  if (!SMTP_USER || !SMTP_PASS) {
+    throw new Error("Email is not configured on the Render service.");
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+  });
+
+  const subject = `NEW JOB INTAKE - ${customerName || "Customer"} - ${projectType || "New Job"}`;
+  const text = [
+    "CREATIVE COATINGS - NEW JOB INTAKE",
+    "",
+    `Status: ${intakeStatus || "Submitted"}`,
+    "",
+    summary,
+    "",
+    "---",
+    "Submitted automatically through the Creative Coatings New Job Intake.",
+  ].join("\n");
+
+  const info = await transporter.sendMail({
+    from: INTAKE_FROM,
+    to: INTAKE_TO,
+    subject,
+    text,
+  });
+
+  return { messageId: info.messageId, recipient: INTAKE_TO, subject };
+}
 
 function createAppServer() {
   const server = new McpServer({
@@ -67,6 +110,50 @@ function createAppServer() {
         version: "0.2.0",
       },
     })
+  );
+
+  registerAppTool(
+    server,
+    "submit_project_intake",
+    {
+      title: "Submit Creative Coatings project intake",
+      description:
+        "Submit a completed Creative Coatings project intake and email the full summary to the shop.",
+      inputSchema: {
+        summary: z.string().min(1),
+        customerName: z.string().optional(),
+        projectType: z.string().optional(),
+        intakeStatus: z.string().optional(),
+      },
+      _meta: {
+        "openai/toolInvocation/invoking": "Submitting intake...",
+        "openai/toolInvocation/invoked": "Intake submitted.",
+      },
+    },
+    async ({ summary, customerName, projectType, intakeStatus }) => {
+      const email = await sendIntakeEmail({
+        summary,
+        customerName,
+        projectType,
+        intakeStatus,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Job intake submitted and emailed to ${email.recipient}.`,
+          },
+        ],
+        structuredContent: {
+          ok: true,
+          emailed: true,
+          recipient: email.recipient,
+          subject: email.subject,
+          messageId: email.messageId,
+        },
+      };
+    }
   );
 
   return server;
