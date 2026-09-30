@@ -53,7 +53,8 @@ function rootQuestions(a){
   if(a.existing_customer==='Yes'){
     out.push(
       textQ('first_name','What is the customer’s first name?',{required:true,placeholder:'First name'}),
-      textQ('last_name','What is the customer’s last name?',{required:true,placeholder:'Last name'})
+      textQ('last_name','What is the customer’s last name?',{required:true,placeholder:'Last name'}),
+      q('printavo_lookup','Find this customer in Printavo','lookup',{required:true})
     );
   }
 
@@ -291,7 +292,7 @@ function visibleQuestions(){ return allQuestions().filter(x=>x && x.type!=='noti
 function current(){ const qs=allQuestions(); state.idx=Math.min(state.idx, Math.max(0, qs.length-1)); return qs[state.idx]; }
 function setAnswer(id,val){ state.answers[id]=val; persist(); }
 function persist(){ const name=[state.answers.first_name,state.answers.last_name].filter(Boolean).join(' '); window.openai?.setWidgetState?.({modelContent:`Creative Coatings intake in progress for ${name||'a customer'}.`,privateContent:state}); }
-function isAnswered(question){ if(question.type==='notice') return true; const v=state.answers[question.id]; if(!question.required) return true; if(question.type==='multi') return Array.isArray(v)&&v.length>0; return typeof v==='string' && v.trim().length>0; }
+function isAnswered(question){ if(question.type==='notice') return true; if(question.type==='lookup') return !!state.answers.printavo_contact_id; const v=state.answers[question.id]; if(!question.required) return true; if(question.type==='multi') return Array.isArray(v)&&v.length>0; return typeof v==='string' && v.trim().length>0; }
 
 function next(){ const qs=allQuestions(); const c=qs[state.idx]; if(!isAnswered(c)) return; state.idx=Math.min(state.idx+1, allQuestions().length-1); persist(); render(); }
 function back(){ state.idx=Math.max(0,state.idx-1); persist(); render(); }
@@ -326,6 +327,8 @@ function makeSummary(){
   lines.push(`Existing Customer: ${a.existing_customer||''}`);
   lines.push(`Customer: ${customerName}`);
   if(a.business_name) lines.push(`Business: ${a.business_name}`);
+  if(a.printavo_company_name && !a.business_name) lines.push(`Business: ${a.printavo_company_name}`);
+  if(a.printavo_contact_id) lines.push(`Printavo Contact ID: ${a.printavo_contact_id}`);
   if(a.phone) lines.push(`Phone: ${a.phone}`);
   if(a.email) lines.push(`Email: ${a.email}`);
   if(a.billing_address) lines.push(`Billing Address: ${a.billing_address}`);
@@ -344,7 +347,7 @@ function makeSummary(){
   const deadline=Object.keys(a).find(k=>k.endsWith('_deadline') && a[k]);
   if(deadline) lines.push(`Customer Requested Completion Date: ${a[deadline]}`);
   lines.push('','PROJECT DETAILS');
-  const skip=new Set(['existing_customer','first_name','last_name','business_name','phone','email','billing_address','category']);
+  const skip=new Set(['existing_customer','first_name','last_name','business_name','phone','email','billing_address','category','printavo_lookup','printavo_contact_id','printavo_customer_id','printavo_full_name','printavo_company_name']);
   for(const [k,v] of Object.entries(a)){
     if(skip.has(k) || k.endsWith('_deadline_yn') || !v) continue;
     if(['vehicle','vehicle_graphics_type','trailer_type','trailer_length','trailer_width','trailer_height','film_type','sign_type','apparel_type','promo_type'].includes(k)) continue;
@@ -373,11 +376,57 @@ function render(){
   else if(c.type==='text') control=c.multiline?`<textarea id="entry" placeholder="${escapeHtml(c.placeholder||'Type answer')}">${escapeHtml(val||'')}</textarea>`:`<input id="entry" type="text" inputmode="${escapeHtml(c.inputMode||'text')}" placeholder="${escapeHtml(c.placeholder||'Type answer')}" value="${escapeHtml(val||'')}"/>`;
   else if(c.type==='single') control=`<div class="options">${c.options.map(o=>`<button class="option ${val===o?'selected':''}" data-value="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join('')}</div>`;
   else if(c.type==='multi'){ const arr=Array.isArray(val)?val:[]; control=`<div class="options">${c.options.map(o=>`<button class="option ${arr.includes(o)?'selected':''}" data-value="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join('')}</div><div class="hint" style="margin-top:10px">Select all that apply.</div>`; }
+  else if(c.type==='lookup'){
+    control=`<div id="lookupBox"><div class="notice">Search Printavo using ${escapeHtml([state.answers.first_name,state.answers.last_name].filter(Boolean).join(' '))}.</div><button class="primary" id="searchPrintavo">Search Printavo</button><div id="lookupResults" style="margin-top:12px"></div></div>`;
+  }
   app.innerHTML=`<div class="top"><div><div class="brand">Creative Coatings</div><div class="small">Project Intake</div></div><div class="step">Step ${Math.min(state.idx+1,qs.length)} of ${qs.length}</div></div><div class="progress"><div style="width:${progress}%"></div></div><h2>${escapeHtml(c.label)}</h2>${c.hint?`<div class="hint">${escapeHtml(c.hint)}</div>`:''}${control}<div class="actions"><button class="secondary" id="back" ${state.idx===0?'disabled':''}>Back</button><div class="right"><button class="primary" id="next" ${c.type==='notice'?'':'disabled'}>${state.idx===qs.length-1?'Review Intake':'Continue'}</button></div></div>`;
 
   document.getElementById('back').onclick=back;
   const nextBtn=document.getElementById('next');
   if(c.type==='notice'){ nextBtn.disabled=false; nextBtn.onclick=next; return; }
+  if(c.type==='lookup'){
+    nextBtn.disabled=!isAnswered(c);
+    const searchBtn=document.getElementById('searchPrintavo');
+    const results=document.getElementById('lookupResults');
+    if(state.answers.printavo_contact_id){
+      results.innerHTML=`<div class="notice">Selected: ${escapeHtml(state.answers.printavo_full_name||'Printavo customer')}${state.answers.printavo_company_name?' — '+escapeHtml(state.answers.printavo_company_name):''}</div>`;
+    }
+    searchBtn.onclick=async()=>{
+      const query=[state.answers.first_name,state.answers.last_name].filter(Boolean).join(' ').trim();
+      if(!query) return;
+      searchBtn.disabled=true; searchBtn.textContent='Searching...'; results.innerHTML='';
+      try{
+        const r=await callTool('search_printavo_contacts',{query});
+        const contacts=r?.structuredContent?.contacts||r?.content?.find?.(x=>x.type==='json')?.json?.contacts||[];
+        if(!contacts.length){
+          results.innerHTML=`<div class="notice">No matching customer found in Printavo. Verify spelling or use Back and choose No for a new customer.</div>`;
+        }else{
+          results.innerHTML=`<div class="options">${contacts.map((x,i)=>{
+            const name=x.fullName||[x.firstName,x.lastName].filter(Boolean).join(' ')||'Unnamed contact';
+            const company=x.customer?.companyName? ` — ${x.customer.companyName}` : '';
+            const detail=[x.email,x.phone].filter(Boolean).join(' • ');
+            return `<button class="option contact-result" data-i="${i}">${escapeHtml(name+company)}${detail?'<div class="small">'+escapeHtml(detail)+'</div>':''}</button>`;
+          }).join('')}</div>`;
+          document.querySelectorAll('.contact-result').forEach(btn=>btn.onclick=()=>{
+            const x=contacts[Number(btn.dataset.i)];
+            state.answers.printavo_contact_id=String(x.id||'');
+            state.answers.printavo_customer_id=String(x.customer?.id||'');
+            state.answers.printavo_full_name=x.fullName||[x.firstName,x.lastName].filter(Boolean).join(' ');
+            state.answers.printavo_company_name=x.customer?.companyName||'';
+            state.answers.phone=x.phone||'';
+            state.answers.email=x.email||'';
+            persist(); render();
+          });
+        }
+      }catch(e){
+        results.innerHTML=`<div class="notice">Printavo lookup failed. Try again in a moment.</div>`;
+      }finally{
+        searchBtn.disabled=false; searchBtn.textContent='Search Printavo';
+      }
+    };
+    nextBtn.onclick=next;
+    return;
+  }
   if(c.type==='text'){
     const entry=document.getElementById('entry');
     const sync=()=>{ setAnswer(c.id,entry.value.trim()); nextBtn.disabled=c.required&&!entry.value.trim(); };
