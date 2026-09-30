@@ -42,7 +42,6 @@ function createAppServer() {
   );
 
   server.registerTool(
-    server,
     "search_printavo_contacts",
     {
       title: "Search Printavo customers",
