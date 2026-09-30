@@ -9,6 +9,7 @@
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "1.0.1",
     "@modelcontextprotocol/sdk": "1.24.2",
+    "nodemailer": "7.0.6",
     "zod": "3.25.76"
   }
 }
