@@ -45,14 +45,37 @@ const state = window.openai?.widgetState?.privateContent || { answers:{}, histor
 state.answers ||= {};
 state.history ||= [];
 
-const ROOT = [
-  q('customer_name','What is the customer’s first and last name?','text',{required:true, placeholder:'First and last name'}),
-  q('phone','What is the customer’s phone number?','text',{required:true, placeholder:'Phone number'}),
-  q('email','What is the customer’s email address?','text',{required:true, placeholder:'Email address'}),
-  q('category','What type of project is the customer looking for?','single',{required:true, options:[
-    'Printed Vinyl Graphics','Window Film','Paint Protection Film (PPF)','Signage','Apparel','Promotional Products','Other / Custom Project'
-  ]}),
-];
+function rootQuestions(a){
+  const out = [
+    yesNo('existing_customer','Is this an existing customer?',{required:true})
+  ];
+
+  if(a.existing_customer==='Yes'){
+    out.push(
+      textQ('first_name','What is the customer’s first name?',{required:true,placeholder:'First name'}),
+      textQ('last_name','What is the customer’s last name?',{required:true,placeholder:'Last name'})
+    );
+  }
+
+  if(a.existing_customer==='No'){
+    out.push(
+      textQ('first_name','What is the customer’s first name?',{required:true,placeholder:'First name'}),
+      textQ('last_name','What is the customer’s last name?',{required:true,placeholder:'Last name'}),
+      textQ('business_name','What is the customer’s business name, if applicable?',{placeholder:'Business name'}),
+      textQ('phone','What is the customer’s phone number?',{required:true,placeholder:'Phone number'}),
+      textQ('email','What is the customer’s email address?',{required:true,placeholder:'Email address'}),
+      textQ('billing_address','What is the customer’s billing address?',{required:true,placeholder:'Street, city, state, ZIP'})
+    );
+  }
+
+  if(a.existing_customer){
+    out.push(q('category','What type of project is the customer looking for?','single',{required:true, options:[
+      'Printed Vinyl Graphics','Window Film','Paint Protection Film (PPF)','Signage','Apparel','Promotional Products','Other / Custom Project'
+    ]}));
+  }
+
+  return out;
+}
 
 function q(id,label,type,extra={}) { return {id,label,type,...extra}; }
 function yesNo(id,label,extra={}) { return q(id,label,'single',{options:['Yes','No'],...extra}); }
@@ -210,7 +233,50 @@ function windowFilm(a){
 
 function ppf(a){ return [textQ('ppf_vehicle','What is the year, make, and model of the vehicle?',{required:true}),select('ppf_coverage','What coverage is the customer interested in?',['Partial Front','Full Front','Full Vehicle','Rocker Panels','Door Cups / Edges','Custom Areas','Not Sure'],{required:true}),select('existing_ppf','Does the vehicle currently have PPF?',['Yes','No','Not Sure'],{required:true}),select('ppf_damage','Is there any existing damage?',['No Known Damage','Rock Chips','Scratches','Paint Damage','Body Repair','Other','Not Sure'],{required:true}),select('ppf_aftermarket','Does the vehicle have aftermarket or modified exterior body parts?',['No','Yes','Not Sure'],{required:true}),yesNo('ppf_photos','Do we have current photos of the vehicle?',{required:true}),...deadlineQuestions('ppf')]; }
 
-function signage(a){ return [select('sign_type','What type of sign is the customer looking for?',['Yard Signs','Rigid Signs','Building Sign','Door / Office Sign','Real Estate Sign','Wayfinding / Directional','Job Site Sign','Mounted Lettering / Logo','Other','Not Sure'],{required:true}),textQ('sign_width','What is the sign width?',{required:true}),textQ('sign_height','What is the sign height?',{required:true}),textQ('sign_qty','What quantity does the customer need?',{required:true}),select('sign_sides','Single or double-sided?',['Single-Sided','Double-Sided','Not Sure'],{required:true}),select('sign_material','Does the customer know what material they want?',['Yes','No – Recommend Material'],{required:true}),select('sign_install','Does Creative Coatings need to install it?',['Yes','No','Not Sure'],{required:true}),...(a.sign_install==='Yes'?[textQ('sign_address','What is the installation address?',{required:true}),yesNo('sign_site_photos','Do we have site photos?',{required:true})]:[]),...deadlineQuestions('sign')]; }
+function signage(a){
+  const out = [select('sign_type','What type of sign is the customer looking for?',['Banner','Yard Signs','Rigid Signs','Building Sign','Door / Office Sign','Real Estate Sign','Wayfinding / Directional','Job Site Sign','Mounted Lettering / Logo','Other','Not Sure'],{required:true})];
+
+  if(a.sign_type==='Banner'){
+    out.push(
+      textQ('banner_width','What is the banner width?',{required:true,placeholder:'Example: 8 ft'}),
+      textQ('banner_height','What is the banner height?',{required:true,placeholder:'Example: 3 ft'}),
+      textQ('banner_qty','What quantity does the customer need?',{required:true,inputMode:'numeric'}),
+      select('banner_sides','Single or double-sided?',['Single-Sided','Double-Sided','Not Sure'],{required:true}),
+      select('banner_use','Will the banner be used indoors or outdoors?',['Indoor','Outdoor','Both / Mixed Use','Not Sure'],{required:true}),
+      multi('banner_finishing','What finishing does the banner need?',['Hemmed Edges','Grommets','Pole Pockets','Wind Slits','No Special Finishing','Not Sure'],{required:true}),
+      select('banner_art','What is the artwork status?',['Print Ready','Artwork Received – Changes Needed','Customer Needs to Send Artwork','Creative Coatings Needs to Design It','Not Sure'],{required:true}),
+      textQ('banner_content','What wording, logos, or information needs to appear on the banner?',{required:true,multiline:true}),
+      select('banner_install','Does Creative Coatings need to install or hang the banner?',['Yes','No','Not Sure'],{required:true})
+    );
+    if(a.banner_install==='Yes'){
+      out.push(
+        textQ('banner_install_address','What is the installation address?',{required:true}),
+        yesNo('banner_site_photos','Do we have photos of where the banner will be installed?',{required:true})
+      );
+    }
+    out.push(...deadlineQuestions('banner'));
+    return out;
+  }
+
+  if(a.sign_type){
+    out.push(
+      textQ('sign_width','What is the sign width?',{required:true}),
+      textQ('sign_height','What is the sign height?',{required:true}),
+      textQ('sign_qty','What quantity does the customer need?',{required:true}),
+      select('sign_sides','Single or double-sided?',['Single-Sided','Double-Sided','Not Sure'],{required:true}),
+      select('sign_material','Does the customer know what material they want?',['Yes','No – Recommend Material'],{required:true}),
+      select('sign_install','Does Creative Coatings need to install it?',['Yes','No','Not Sure'],{required:true})
+    );
+    if(a.sign_install==='Yes'){
+      out.push(
+        textQ('sign_address','What is the installation address?',{required:true}),
+        yesNo('sign_site_photos','Do we have site photos?',{required:true})
+      );
+    }
+    out.push(...deadlineQuestions('sign'));
+  }
+  return out;
+}
 
 function apparel(a){ return [select('apparel_type','What does the customer need?',['T-Shirts','Polos','Hoodies / Sweatshirts','Hats','Jackets / Outerwear','Workwear','Multiple Garment Types','Customer-Supplied Garments','Other'],{required:true}),textQ('apparel_qty','What is the approximate quantity?',{required:true}),textQ('apparel_color','What garment color does the customer want?',{required:true}),select('decoration','What decoration type are they looking for?',['Printed','Embroidery','Not Sure – Recommend'],{required:true}),multi('decor_locations','Where will the design go?',['Left Chest','Full Front','Full Back','Sleeve','Hat Front','Hat Side','Other'],{required:true}),select('apparel_art','Does the customer have artwork?',['Yes – Received','Yes – Needs to Send','No – Design Needed'],{required:true}),select('sizes_ready','Do we have the size breakdown?',['Yes','Not Yet'],{required:true}),...(a.sizes_ready==='Yes'?[textQ('size_breakdown','Enter the size breakdown.',{required:true,multiline:true})]:[]),yesNo('personalization','Does the customer need names, numbers, or personalization?',{required:true}),...deadlineQuestions('apparel')]; }
 
@@ -220,11 +286,11 @@ function custom(a){ return [textQ('custom_desc','In the customer’s own words, 
 
 function deadlineQuestions(prefix){ return [select(prefix+'_deadline_yn','Does the customer have a required completion date?',['No Specific Deadline','Yes'],{required:true}),...(state.answers[prefix+'_deadline_yn']==='Yes'?[textQ(prefix+'_deadline','What date does the customer need the project completed by?',{required:true,placeholder:'MM/DD/YYYY'})]:[])]; }
 
-function allQuestions(){ return [...ROOT, ...categoryQuestions(state.answers)]; }
+function allQuestions(){ return [...rootQuestions(state.answers), ...categoryQuestions(state.answers)]; }
 function visibleQuestions(){ return allQuestions().filter(x=>x && x.type!=='notice' || x); }
 function current(){ const qs=allQuestions(); state.idx=Math.min(state.idx, Math.max(0, qs.length-1)); return qs[state.idx]; }
 function setAnswer(id,val){ state.answers[id]=val; persist(); }
-function persist(){ window.openai?.setWidgetState?.({modelContent:`Creative Coatings intake in progress for ${state.answers.customer_name||'a customer'}.`,privateContent:state}); }
+function persist(){ const name=[state.answers.first_name,state.answers.last_name].filter(Boolean).join(' '); window.openai?.setWidgetState?.({modelContent:`Creative Coatings intake in progress for ${name||'a customer'}.`,privateContent:state}); }
 function isAnswered(question){ if(question.type==='notice') return true; const v=state.answers[question.id]; if(!question.required) return true; if(question.type==='multi') return Array.isArray(v)&&v.length>0; return typeof v==='string' && v.trim().length>0; }
 
 function next(){ const qs=allQuestions(); const c=qs[state.idx]; if(!isAnswered(c)) return; state.idx=Math.min(state.idx+1, allQuestions().length-1); persist(); render(); }
@@ -256,9 +322,14 @@ function status(){ const m=missingItems(); if(m.length) return 'INTAKE INCOMPLET
 function makeSummary(){
   const a=state.answers; const stat=status(); const lines=[];
   lines.push('PRINTAVO PROJECT SUMMARY','');
-  lines.push(`Customer: ${a.customer_name||''}`);
-  lines.push(`Phone: ${a.phone||''}`);
-  lines.push(`Email: ${a.email||''}`,'');
+  const customerName=[a.first_name,a.last_name].filter(Boolean).join(' ');
+  lines.push(`Existing Customer: ${a.existing_customer||''}`);
+  lines.push(`Customer: ${customerName}`);
+  if(a.business_name) lines.push(`Business: ${a.business_name}`);
+  if(a.phone) lines.push(`Phone: ${a.phone}`);
+  if(a.email) lines.push(`Email: ${a.email}`);
+  if(a.billing_address) lines.push(`Billing Address: ${a.billing_address}`);
+  lines.push('');
   lines.push(`Project Type: ${a.category||''}`);
   if(a.vinyl_applied_to) lines.push(`Application: ${a.vinyl_applied_to}`);
   if(a.vehicle) lines.push(`Vehicle: ${a.vehicle}`);
@@ -267,12 +338,13 @@ function makeSummary(){
   if(a.trailer_length||a.trailer_width||a.trailer_height) lines.push(`Trailer Dimensions: ${a.trailer_length||'?'} L × ${a.trailer_width||'?'} W × ${a.trailer_height||'?'} H`);
   if(a.film_type) lines.push(`Window Film Type: ${a.film_type}`);
   if(a.sign_type) lines.push(`Sign Type: ${a.sign_type}`);
+  if(a.sign_type==='Banner' && (a.banner_width||a.banner_height)) lines.push(`Banner Size: ${a.banner_width||'?'} × ${a.banner_height||'?'}`);
   if(a.apparel_type) lines.push(`Apparel: ${a.apparel_type}`);
   if(a.promo_type) lines.push(`Promotional Product: ${a.promo_type}`);
   const deadline=Object.keys(a).find(k=>k.endsWith('_deadline') && a[k]);
   if(deadline) lines.push(`Customer Requested Completion Date: ${a[deadline]}`);
   lines.push('','PROJECT DETAILS');
-  const skip=new Set(['customer_name','phone','email','category']);
+  const skip=new Set(['existing_customer','first_name','last_name','business_name','phone','email','billing_address','category']);
   for(const [k,v] of Object.entries(a)){
     if(skip.has(k) || k.endsWith('_deadline_yn') || !v) continue;
     if(['vehicle','vehicle_graphics_type','trailer_type','trailer_length','trailer_width','trailer_height','film_type','sign_type','apparel_type','promo_type'].includes(k)) continue;
