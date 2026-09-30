@@ -406,7 +406,7 @@ async function callTool(name,args){
 
 function renderSummary(){
   const stat=status(); const summary=makeSummary(); const cls=stat==='READY FOR QUOTE'?'green':stat==='ESTIMATOR REVIEW REQUIRED'?'yellow':'red';
-  app.innerHTML=`<div class="top"><div><div class="brand">Creative Coatings</div><div class="small">Project Intake Review</div></div></div><span class="status ${cls}">${escapeHtml(stat)}</span><div class="summary">${escapeHtml(summary)}</div><div class="actions"><button class="secondary" id="back">Back</button><div class="right"><button class="primary" id="submit">Send Summary to Chat</button></div></div>`;
+  app.innerHTML=`<div class="top"><div><div class="brand">Creative Coatings</div><div class="small">Project Intake Review</div></div></div><span class="status ${cls}">${escapeHtml(stat)}</span><div class="summary">${escapeHtml(summary)}</div><div class="actions"><button class="secondary" id="back">Back</button><div class="right"><button class="primary" id="submit">Submit Job</button></div></div>`;
   document.getElementById('back').onclick=()=>{state.idx=Math.max(0,allQuestions().length-1);persist();render();};
   document.getElementById('submit').onclick=async()=>{
     const btn=document.getElementById('submit'); btn.disabled=true; btn.textContent='Sending...';
