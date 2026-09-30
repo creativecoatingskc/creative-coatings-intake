@@ -7,17 +7,16 @@ import {
 } from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { z } from "zod";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MCP_PATH = "/mcp";
-const WIDGET_URI = "ui://creative-coatings/project-intake-v3.html";
+const WIDGET_URI = "ui://creative-coatings/project-intake-v2.html";
 const widgetHtml = readFileSync("public/intake-widget.html", "utf8");
 
 function createAppServer() {
   const server = new McpServer({
     name: "creative-coatings-project-intake",
-    version: "0.3.0",
+    version: "0.2.0",
   });
 
   registerAppResource(
@@ -41,96 +40,6 @@ function createAppServer() {
     })
   );
 
-  server.registerTool(
-    "search_printavo_contacts",
-    {
-      title: "Search Printavo customers",
-      description:
-        "Search Creative Coatings Printavo contacts by customer name and return matching contact details for the intake form.",
-      inputSchema: z.object({
-        query: z.string().min(2),
-      }),
-    },
-    async ({ query }) => {
-      const email = process.env.PRINTAVO_EMAIL;
-      const token = process.env.PRINTAVO_API_TOKEN;
-
-      if (!email || !token) {
-        return {
-          content: [{ type: "text", text: "Printavo credentials are not configured." }],
-          structuredContent: { contacts: [], error: "PRINTAVO_NOT_CONFIGURED" },
-          isError: true,
-        };
-      }
-
-      const graphQuery = `
-        query SearchContacts($query: String!) {
-          contacts(query: $query, first: 10, primaryOnly: true) {
-            nodes {
-              id
-              firstName
-              lastName
-              fullName
-              email
-              phone
-              orderCount
-              customer {
-                id
-                companyName
-              }
-            }
-          }
-        }
-      `;
-
-      try {
-        const response = await fetch("https://www.printavo.com/api/v2", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            email,
-            token,
-          },
-          body: JSON.stringify({
-            query: graphQuery,
-            variables: { query: query.trim() },
-          }),
-        });
-
-        const payload = await response.json();
-
-        if (!response.ok || payload.errors) {
-          console.error("Printavo search error:", payload.errors || payload);
-          return {
-            content: [{ type: "text", text: "Printavo customer search failed." }],
-            structuredContent: { contacts: [], error: "PRINTAVO_SEARCH_FAILED" },
-            isError: true,
-          };
-        }
-
-        const contacts = payload?.data?.contacts?.nodes ?? [];
-        return {
-          content: [
-            {
-              type: "text",
-              text: contacts.length
-                ? `Found ${contacts.length} matching Printavo contact(s).`
-                : "No matching Printavo contacts found.",
-            },
-          ],
-          structuredContent: { contacts },
-        };
-      } catch (error) {
-        console.error("Printavo request failed:", error);
-        return {
-          content: [{ type: "text", text: "Unable to reach Printavo." }],
-          structuredContent: { contacts: [], error: "PRINTAVO_UNAVAILABLE" },
-          isError: true,
-        };
-      }
-    }
-  );
-
   registerAppTool(
     server,
     "open_project_intake",
@@ -138,7 +47,7 @@ function createAppServer() {
       title: "Open Creative Coatings project intake",
       description:
         "Use this whenever the user asks to start, create, open, or fill out a Creative Coatings new project intake. Opens the interactive employee intake form with clickable choices.",
-      inputSchema: z.object({}),
+      inputSchema: {},
       _meta: {
         ui: { resourceUri: WIDGET_URI },
         "openai/outputTemplate": WIDGET_URI,
@@ -155,7 +64,7 @@ function createAppServer() {
       ],
       structuredContent: {
         mode: "new_project_intake",
-        version: "0.3.0",
+        version: "0.2.0",
       },
     })
   );
@@ -186,7 +95,7 @@ const httpServer = createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/") {
     res
       .writeHead(200, { "content-type": "text/plain; charset=utf-8" })
-      .end("Creative Coatings Project Intake MCP server v0.3.0");
+      .end("Creative Coatings Project Intake MCP server v0.2.0");
     return;
   }
 
@@ -197,7 +106,7 @@ const httpServer = createServer(async (req, res) => {
         JSON.stringify({
           ok: true,
           service: "creative-coatings-project-intake",
-          version: "0.3.0",
+          version: "0.2.0",
         })
       );
     return;
