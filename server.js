@@ -7,7 +7,7 @@ import {
 } from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MCP_PATH = "/mcp";
@@ -41,7 +41,7 @@ function createAppServer() {
     })
   );
 
-  registerAppTool(
+  server.registerTool(
     server,
     "search_printavo_contacts",
     {
