@@ -7,7 +7,7 @@ import {
 } from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MCP_PATH = "/mcp";
@@ -48,9 +48,9 @@ function createAppServer() {
       title: "Search Printavo customers",
       description:
         "Search Creative Coatings Printavo contacts by customer name and return matching contact details for the intake form.",
-      inputSchema: {
+      inputSchema: z.object({
         query: z.string().min(2),
-      },
+      }),
     },
     async ({ query }) => {
       const email = process.env.PRINTAVO_EMAIL;
@@ -139,7 +139,7 @@ function createAppServer() {
       title: "Open Creative Coatings project intake",
       description:
         "Use this whenever the user asks to start, create, open, or fill out a Creative Coatings new project intake. Opens the interactive employee intake form with clickable choices.",
-      inputSchema: {},
+      inputSchema: z.object({}),
       _meta: {
         ui: { resourceUri: WIDGET_URI },
         "openai/outputTemplate": WIDGET_URI,
