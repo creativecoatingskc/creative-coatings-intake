@@ -12,7 +12,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MCP_PATH = "/mcp";
-const WIDGET_URI = "ui://creative-coatings/project-intake-v4.html";
+const WIDGET_URI = "ui://widget/project-intake.html";
 const widgetHtml = readFileSync("public/intake-widget.html", "utf8");
 
 const SMTP_HOST = process.env.SMTP_HOST ?? "smtp.gmail.com";
@@ -60,7 +60,7 @@ function createAppServer() {
   const server = new McpServer(
     {
       name: "creative-coatings-project-intake",
-      version: "0.2.3",
+      version: "0.2.4",
     },
     {
       instructions:
@@ -124,7 +124,6 @@ function createAppServer() {
         openWorldHint: false,
       },
       _meta: {
-        ui: { resourceUri: WIDGET_URI },
         "openai/outputTemplate": WIDGET_URI,
         "openai/widgetAccessible": true,
         "openai/toolInvocation/invoking": "Opening project intake...",
@@ -140,7 +139,7 @@ function createAppServer() {
       ],
       structuredContent: {
         mode: "new_project_intake",
-        version: "0.2.3",
+        version: "0.2.4",
       },
     })
   );
@@ -172,7 +171,6 @@ function createAppServer() {
         openWorldHint: false,
       },
       _meta: {
-        ui: { resourceUri: WIDGET_URI },
         "openai/outputTemplate": WIDGET_URI,
         "openai/widgetAccessible": true,
         "openai/toolInvocation/invoking": "Submitting intake...",
@@ -231,7 +229,7 @@ const httpServer = createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/") {
     res
       .writeHead(200, { "content-type": "text/plain; charset=utf-8" })
-      .end("Creative Coatings Project Intake MCP server v0.2.3");
+      .end("Creative Coatings Project Intake MCP server v0.2.4");
     return;
   }
 
@@ -242,7 +240,7 @@ const httpServer = createServer(async (req, res) => {
         JSON.stringify({
           ok: true,
           service: "creative-coatings-project-intake",
-          version: "0.2.3",
+          version: "0.2.4",
         })
       );
     return;
