@@ -12,7 +12,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MCP_PATH = "/mcp";
-const WIDGET_URI = "ui://widget/project-intake-v6.html";
+const WIDGET_URI = "ui://widget/project-intake-v7.html";
 const widgetHtml = readFileSync("public/intake-widget.html", "utf8");
 
 const SMTP_HOST = process.env.SMTP_HOST ?? "smtp.gmail.com";
@@ -60,7 +60,7 @@ function createAppServer() {
   const server = new McpServer(
     {
       name: "creative-coatings-project-intake",
-      version: "0.2.6",
+      version: "0.2.7",
     },
     {
       instructions:
@@ -72,7 +72,10 @@ function createAppServer() {
     server,
     "creative-coatings-intake-widget",
     WIDGET_URI,
-    {},
+    {
+      mimeType: RESOURCE_MIME_TYPE,
+      description: "Creative Coatings Job Intake widget HTML",
+    },
     async () => ({
       contents: [
         {
@@ -207,7 +210,7 @@ const httpServer = createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/") {
     res
       .writeHead(200, { "content-type": "text/plain; charset=utf-8" })
-      .end("Creative Coatings Project Intake MCP server v0.2.5");
+      .end("Creative Coatings Project Intake MCP server v0.2.7");
     return;
   }
 
@@ -218,7 +221,7 @@ const httpServer = createServer(async (req, res) => {
         JSON.stringify({
           ok: true,
           service: "creative-coatings-project-intake",
-          version: "0.2.4",
+          version: "0.2.7",
         })
       );
     return;
@@ -232,7 +235,6 @@ const httpServer = createServer(async (req, res) => {
     const server = createAppServer();
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
-      enableJsonResponse: true,
     });
 
     res.on("close", () => {
