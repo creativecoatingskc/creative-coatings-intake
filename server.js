@@ -12,7 +12,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MCP_PATH = "/mcp";
-const WIDGET_URI = "ui://widget/project-intake.html";
+const WIDGET_URI = "ui://widget/project-intake-v6.html";
 const widgetHtml = readFileSync("public/intake-widget.html", "utf8");
 
 const SMTP_HOST = process.env.SMTP_HOST ?? "smtp.gmail.com";
@@ -60,7 +60,7 @@ function createAppServer() {
   const server = new McpServer(
     {
       name: "creative-coatings-project-intake",
-      version: "0.2.5",
+      version: "0.2.6",
     },
     {
       instructions:
@@ -72,10 +72,7 @@ function createAppServer() {
     server,
     "creative-coatings-intake-widget",
     WIDGET_URI,
-    {
-      mimeType: RESOURCE_MIME_TYPE,
-      description: "Creative Coatings interactive project intake widget",
-    },
+    {},
     async () => ({
       contents: [
         {
@@ -84,8 +81,6 @@ function createAppServer() {
           text: widgetHtml,
           _meta: {
             ui: { prefersBorder: true },
-            "openai/widgetDescription":
-              "Interactive Creative Coatings employee intake form with clickable choices that produces a Printavo-ready project summary.",
           },
         },
       ],
@@ -111,8 +106,6 @@ function createAppServer() {
       },
       _meta: {
         ui: { resourceUri: WIDGET_URI },
-        "openai/outputTemplate": WIDGET_URI,
-        "openai/widgetAccessible": true,
         "openai/toolInvocation/invoking": "Opening project intake...",
         "openai/toolInvocation/invoked": "Project intake opened.",
       },
@@ -126,7 +119,7 @@ function createAppServer() {
       ],
       structuredContent: {
         mode: "new_project_intake",
-        version: "0.2.4",
+        version: "0.2.6",
       },
     })
   );
@@ -158,8 +151,6 @@ function createAppServer() {
         openWorldHint: false,
       },
       _meta: {
-        "openai/outputTemplate": WIDGET_URI,
-        "openai/widgetAccessible": true,
         "openai/toolInvocation/invoking": "Submitting intake...",
         "openai/toolInvocation/invoked": "Intake submitted.",
       },
