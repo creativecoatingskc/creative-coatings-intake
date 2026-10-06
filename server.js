@@ -57,10 +57,16 @@ async function sendIntakeEmail({ summary, customerName, projectType, intakeStatu
 }
 
 function createAppServer() {
-  const server = new McpServer({
-    name: "creative-coatings-project-intake",
-    version: "0.2.0",
-  });
+  const server = new McpServer(
+    {
+      name: "creative-coatings-project-intake",
+      version: "0.2.1",
+    },
+    {
+      instructions:
+        "Use open_project_intake to launch the Creative Coatings guided intake. Use submit_project_intake only after the user has completed and confirmed the intake summary.",
+    }
+  );
 
   registerAppResource(
     server,
@@ -91,6 +97,15 @@ function createAppServer() {
       description:
         "Use this whenever the user asks to start, create, open, or fill out a Creative Coatings new project intake. Opens the interactive employee intake form with clickable choices.",
       inputSchema: {},
+      outputSchema: {
+        mode: z.string(),
+        version: z.string(),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
       _meta: {
         ui: { resourceUri: WIDGET_URI },
         "openai/outputTemplate": WIDGET_URI,
@@ -107,7 +122,7 @@ function createAppServer() {
       ],
       structuredContent: {
         mode: "new_project_intake",
-        version: "0.2.0",
+        version: "0.2.1",
       },
     })
   );
@@ -124,6 +139,19 @@ function createAppServer() {
         customerName: z.string().optional(),
         projectType: z.string().optional(),
         intakeStatus: z.string().optional(),
+      },
+      outputSchema: {
+        ok: z.boolean(),
+        emailed: z.boolean(),
+        recipient: z.string(),
+        subject: z.string(),
+        messageId: z.string(),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
       },
       _meta: {
         "openai/toolInvocation/invoking": "Submitting intake...",
@@ -182,7 +210,7 @@ const httpServer = createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/") {
     res
       .writeHead(200, { "content-type": "text/plain; charset=utf-8" })
-      .end("Creative Coatings Project Intake MCP server v0.2.0");
+      .end("Creative Coatings Project Intake MCP server v0.2.1");
     return;
   }
 
@@ -193,7 +221,7 @@ const httpServer = createServer(async (req, res) => {
         JSON.stringify({
           ok: true,
           service: "creative-coatings-project-intake",
-          version: "0.2.0",
+          version: "0.2.1",
         })
       );
     return;
