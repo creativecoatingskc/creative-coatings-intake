@@ -60,7 +60,7 @@ function createAppServer() {
   const server = new McpServer(
     {
       name: "creative-coatings-project-intake",
-      version: "0.2.4",
+      version: "0.2.5",
     },
     {
       instructions:
@@ -74,15 +74,7 @@ function createAppServer() {
     WIDGET_URI,
     {
       mimeType: RESOURCE_MIME_TYPE,
-      _meta: {
-        ui: {
-          prefersBorder: true,
-          csp: {
-            connectDomains: [],
-            resourceDomains: [],
-          },
-        },
-      },
+      description: "Creative Coatings interactive project intake widget",
     },
     async () => ({
       contents: [
@@ -91,13 +83,7 @@ function createAppServer() {
           mimeType: RESOURCE_MIME_TYPE,
           text: widgetHtml,
           _meta: {
-            ui: {
-              prefersBorder: true,
-              csp: {
-                connectDomains: [],
-                resourceDomains: [],
-              },
-            },
+            ui: { prefersBorder: true },
             "openai/widgetDescription":
               "Interactive Creative Coatings employee intake form with clickable choices that produces a Printavo-ready project summary.",
           },
@@ -124,6 +110,7 @@ function createAppServer() {
         openWorldHint: false,
       },
       _meta: {
+        ui: { resourceUri: WIDGET_URI },
         "openai/outputTemplate": WIDGET_URI,
         "openai/widgetAccessible": true,
         "openai/toolInvocation/invoking": "Opening project intake...",
@@ -229,7 +216,7 @@ const httpServer = createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/") {
     res
       .writeHead(200, { "content-type": "text/plain; charset=utf-8" })
-      .end("Creative Coatings Project Intake MCP server v0.2.4");
+      .end("Creative Coatings Project Intake MCP server v0.2.5");
     return;
   }
 
