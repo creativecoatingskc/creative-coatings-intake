@@ -12,7 +12,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MCP_PATH = "/mcp";
-const WIDGET_URI = "ui://creative-coatings/project-intake-v3.html";
+const WIDGET_URI = "ui://creative-coatings/project-intake-v4.html";
 const widgetHtml = readFileSync("public/intake-widget.html", "utf8");
 
 const SMTP_HOST = process.env.SMTP_HOST ?? "smtp.gmail.com";
@@ -60,7 +60,7 @@ function createAppServer() {
   const server = new McpServer(
     {
       name: "creative-coatings-project-intake",
-      version: "0.2.2",
+      version: "0.2.3",
     },
     {
       instructions:
@@ -72,7 +72,18 @@ function createAppServer() {
     server,
     "creative-coatings-intake-widget",
     WIDGET_URI,
-    {},
+    {
+      mimeType: RESOURCE_MIME_TYPE,
+      _meta: {
+        ui: {
+          prefersBorder: true,
+          csp: {
+            connectDomains: [],
+            resourceDomains: [],
+          },
+        },
+      },
+    },
     async () => ({
       contents: [
         {
@@ -80,7 +91,13 @@ function createAppServer() {
           mimeType: RESOURCE_MIME_TYPE,
           text: widgetHtml,
           _meta: {
-            ui: { prefersBorder: true },
+            ui: {
+              prefersBorder: true,
+              csp: {
+                connectDomains: [],
+                resourceDomains: [],
+              },
+            },
             "openai/widgetDescription":
               "Interactive Creative Coatings employee intake form with clickable choices that produces a Printavo-ready project summary.",
           },
@@ -123,7 +140,7 @@ function createAppServer() {
       ],
       structuredContent: {
         mode: "new_project_intake",
-        version: "0.2.2",
+        version: "0.2.3",
       },
     })
   );
@@ -214,7 +231,7 @@ const httpServer = createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/") {
     res
       .writeHead(200, { "content-type": "text/plain; charset=utf-8" })
-      .end("Creative Coatings Project Intake MCP server v0.2.2");
+      .end("Creative Coatings Project Intake MCP server v0.2.3");
     return;
   }
 
@@ -225,7 +242,7 @@ const httpServer = createServer(async (req, res) => {
         JSON.stringify({
           ok: true,
           service: "creative-coatings-project-intake",
-          version: "0.2.2",
+          version: "0.2.3",
         })
       );
     return;
