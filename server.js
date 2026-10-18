@@ -287,6 +287,22 @@ async function testPrintavoConnection() {
       signal: AbortSignal.timeout(15000),
     });
     const data = await response.json().catch(() => ({}));
+    if (response.ok && !data.errors?.length) {
+      const schemaResponse = await fetch("https://www.printavo.com/api/v2", {
+        method: "POST",
+        headers: { "content-type": "application/json", email: process.env.PRINTAVO_EMAIL ?? "", token: process.env.PRINTAVO_API_TOKEN ?? "" },
+        body: JSON.stringify({ query: "{ __schema { queryType { fields { name args { name type { kind name ofType { kind name } } } type { kind name ofType { kind name } } } } } }" }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const schema = await schemaResponse.json().catch(() => ({}));
+      const fields = schema.data?.__schema?.queryType?.fields ?? [];
+      console.log("PRINTAVO_SCHEMA_RESULT", JSON.stringify({
+        httpStatus: schemaResponse.status,
+        errors: (schema.errors ?? []).map(e => e.extensions?.code ?? "graphql_error"),
+        relevantFields: fields.filter(f => /status|invoice/i.test(f.name)),
+        introspectionAvailable: Boolean(schema.data?.__schema),
+      }));
+    }
     console.log("PRINTAVO_TEST_RESULT", JSON.stringify({
       httpStatus: response.status,
       authenticated: response.ok && !data.errors?.length,
