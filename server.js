@@ -222,6 +222,13 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/printavo-report") {
+    const html = readFileSync("public/printavo-report.html", "utf8");
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    res.end(html);
+    return;
+  }
+
   // Protected, read-only diagnostic. Never expose customer data without a secret.
   if (url.pathname === "/internal/printavo/artwork-invoices") {
     if (req.method !== "GET") { res.writeHead(405).end("Method not allowed"); return; }
