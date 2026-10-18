@@ -1,4 +1,4 @@
-import { getArtworkInvoices, getTroyInvoices } from "./printavo-readonly.js";
+import { getArtworkInvoices, getTroyInvoices, getBryanInvoices } from "./printavo-readonly.js";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import nodemailer from "nodemailer";
@@ -239,6 +239,39 @@ function createAppServer() {
     },
     async () => {
       const result = await getTroyInvoices();
+      const invoices = result.invoices.map(i => ({
+        id: String(i.id), invoiceNumber: i.invoiceNumber == null ? null : String(i.invoiceNumber),
+        customer: String(i.customer || ""), job: String(i.job || ""),
+        status: String(i.status || ""), dueAt: i.dueAt == null ? null : String(i.dueAt),
+        url: i.url == null ? null : String(i.url)
+      }));
+      return {
+        content: [{ type: "text", text: JSON.stringify({ invoices, missingStatuses: result.missingStatuses }) }],
+        structuredContent: { invoices, missingStatuses: result.missingStatuses }
+      };
+    }
+  );
+
+  registerAppTool(
+    server,
+    "list_printavo_bryan_invoices",
+    {
+      title: "List Bryan's Printavo quote and follow-up invoices",
+      description: "Read live Creative Coatings Printavo invoices in Bryan's four selected quote and follow-up statuses. Read-only.",
+      inputSchema: {},
+      outputSchema: {
+        invoices: z.array(z.object({
+          id: z.string(), invoiceNumber: z.string().nullable().optional(),
+          customer: z.string(), job: z.string(), status: z.string(),
+          dueAt: z.string().nullable().optional(), url: z.string().nullable().optional()
+        })),
+        missingStatuses: z.array(z.string())
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+      _meta: { "openai/toolInvocation/invoking": "Reading Bryan's quote invoices...", "openai/toolInvocation/invoked": "Bryan's invoices retrieved." },
+    },
+    async () => {
+      const result = await getBryanInvoices();
       const invoices = result.invoices.map(i => ({
         id: String(i.id), invoiceNumber: i.invoiceNumber == null ? null : String(i.invoiceNumber),
         customer: String(i.customer || ""), job: String(i.job || ""),
