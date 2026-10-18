@@ -1,4 +1,4 @@
-import { getArtworkInvoices } from "./printavo-readonly.js";
+import { getArtworkInvoices, getTroyInvoices } from "./printavo-readonly.js";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import nodemailer from "nodemailer";
@@ -210,6 +210,39 @@ function createAppServer() {
         job: String(i.job || ""),
         status: String(i.status || ""),
         dueAt: i.dueAt == null ? null : String(i.dueAt),
+        url: i.url == null ? null : String(i.url)
+      }));
+      return {
+        content: [{ type: "text", text: JSON.stringify({ invoices, missingStatuses: result.missingStatuses }) }],
+        structuredContent: { invoices, missingStatuses: result.missingStatuses }
+      };
+    }
+  );
+
+  registerAppTool(
+    server,
+    "list_printavo_troy_invoices",
+    {
+      title: "List Troy's Printavo production invoices",
+      description: "Read live Creative Coatings Printavo invoices in Troy's eight selected payment, production and scheduling statuses. Read-only.",
+      inputSchema: {},
+      outputSchema: {
+        invoices: z.array(z.object({
+          id: z.string(), invoiceNumber: z.string().nullable().optional(),
+          customer: z.string(), job: z.string(), status: z.string(),
+          dueAt: z.string().nullable().optional(), url: z.string().nullable().optional()
+        })),
+        missingStatuses: z.array(z.string())
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+      _meta: { "openai/toolInvocation/invoking": "Reading Troy's production invoices...", "openai/toolInvocation/invoked": "Production invoices retrieved." },
+    },
+    async () => {
+      const result = await getTroyInvoices();
+      const invoices = result.invoices.map(i => ({
+        id: String(i.id), invoiceNumber: i.invoiceNumber == null ? null : String(i.invoiceNumber),
+        customer: String(i.customer || ""), job: String(i.job || ""),
+        status: String(i.status || ""), dueAt: i.dueAt == null ? null : String(i.dueAt),
         url: i.url == null ? null : String(i.url)
       }));
       return {
