@@ -303,6 +303,33 @@ async function testPrintavoConnection() {
         introspectionAvailable: Boolean(schema.data?.__schema),
       }));
     }
+    if (response.ok && !data.errors?.length) {
+      const checkQuery = `query {
+        statusType: __type(name:"Status") { fields { name type { kind name ofType { kind name } } } }
+        invoiceType: __type(name:"Invoice") { fields { name type { kind name ofType { kind name } } } }
+        connectionType: __type(name:"StatusConnection") { fields { name } }
+        statuses(first:100) { nodes { id name } pageInfo { hasNextPage endCursor } }
+      }`;
+      const checkResponse = await fetch("https://www.printavo.com/api/v2", {
+        method: "POST",
+        headers: { "content-type": "application/json", email: process.env.PRINTAVO_EMAIL ?? "", token: process.env.PRINTAVO_API_TOKEN ?? "" },
+        body: JSON.stringify({ query: checkQuery }),
+        signal: AbortSignal.timeout(20000),
+      });
+      const check = await checkResponse.json().catch(() => ({}));
+      const wanted = ["JEN TO CREATE ARTWORK","DESIGN IN PROCESS / INTRODUCTION","EMAIL - ART APPROVAL SENT","ART DECLINED","ARTWORK APPROVED - PREP FOR PRODUCTION"];
+      const names = check.data?.statuses?.nodes?.map(s=>s.name) ?? [];
+      console.log("PRINTAVO_FIELD_RESULT", JSON.stringify({
+        httpStatus: checkResponse.status,
+        errors: (check.errors ?? []).map(e => ({ message: e.message.slice(0,300) })),
+        statusFields: check.data?.statusType?.fields?.map(f=>f.name) ?? [],
+        invoiceFields: check.data?.invoiceType?.fields?.map(f=>f.name) ?? [],
+        statusCountFirstPage: names.length,
+        hasMoreStatuses: check.data?.statuses?.pageInfo?.hasNextPage ?? null,
+        matchingStatuses: wanted.filter(n=>names.some(v=>v.trim().toUpperCase()===n)),
+        missingStatuses: wanted.filter(n=>!names.some(v=>v.trim().toUpperCase()===n)),
+      }));
+    }
     console.log("PRINTAVO_TEST_RESULT", JSON.stringify({
       httpStatus: response.status,
       authenticated: response.ok && !data.errors?.length,
