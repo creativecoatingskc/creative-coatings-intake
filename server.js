@@ -179,6 +179,45 @@ function createAppServer() {
     }
   );
 
+  registerAppTool(
+    server,
+    "list_printavo_artwork_invoices",
+    {
+      title: "List Printavo artwork invoices",
+      description: "Read live Creative Coatings Printavo invoices in the five artwork workflow statuses. Returns invoice number, customer, job, status, due date, and Printavo URL. Read-only; does not change invoices.",
+      inputSchema: {},
+      outputSchema: {
+        invoices: z.array(z.object({
+          id: z.string(),
+          invoiceNumber: z.string().nullable().optional(),
+          customer: z.string(),
+          job: z.string(),
+          status: z.string(),
+          dueAt: z.string().nullable().optional(),
+          url: z.string().nullable().optional()
+        })),
+        missingStatuses: z.array(z.string())
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    },
+    async () => {
+      const result = await getArtworkInvoices();
+      const invoices = result.invoices.map(i => ({
+        id: String(i.id),
+        invoiceNumber: i.invoiceNumber == null ? null : String(i.invoiceNumber),
+        customer: String(i.customer || ""),
+        job: String(i.job || ""),
+        status: String(i.status || ""),
+        dueAt: i.dueAt == null ? null : String(i.dueAt),
+        url: i.url == null ? null : String(i.url)
+      }));
+      return {
+        content: [{ type: "text", text: JSON.stringify({ invoices, missingStatuses: result.missingStatuses }) }],
+        structuredContent: { invoices, missingStatuses: result.missingStatuses }
+      };
+    }
+  );
+
   return server;
 }
 
