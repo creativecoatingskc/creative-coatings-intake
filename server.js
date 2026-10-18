@@ -331,6 +331,19 @@ async function testPrintavoConnection() {
         missingStatuses: wanted.filter(n=>!names.some(v=>v.trim().toUpperCase()===n)),
       }));
     }
+    if (response.ok && !data.errors?.length) {
+      try {
+        const report = await getArtworkInvoices();
+        const counts = Object.fromEntries(report.matchingStatuses.map(s => [s.name, report.invoices.filter(i => i.status === s.name).length]));
+        console.log("PRINTAVO_INVOICE_RESULT", JSON.stringify({
+          success: true, invoiceCount: report.invoices.length,
+          statusCounts: counts, missingStatuses: report.missingStatuses,
+          invoiceNumbersPresent: report.invoices.every(i => Boolean(i.invoiceNumber)),
+        }));
+      } catch (err) {
+        console.log("PRINTAVO_INVOICE_RESULT", JSON.stringify({ success: false, error: String(err.message).slice(0,500) }));
+      }
+    }
     console.log("PRINTAVO_TEST_RESULT", JSON.stringify({
       httpStatus: response.status,
       authenticated: response.ok && !data.errors?.length,
