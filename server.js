@@ -1,3 +1,4 @@
+import { getArtworkInvoices } from "./printavo-readonly.js";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import nodemailer from "nodemailer";
@@ -218,6 +219,25 @@ const httpServer = createServer(async (req, res) => {
           version: "0.2.7",
         })
       );
+    return;
+  }
+
+  // Protected, read-only diagnostic. Never expose customer data without a secret.
+  if (url.pathname === "/internal/printavo/artwork-invoices") {
+    if (req.method !== "GET") { res.writeHead(405).end("Method not allowed"); return; }
+    const secret = process.env.INTEGRATION_ACCESS_TOKEN;
+    const supplied = req.headers.authorization;
+    if (!secret || !supplied || supplied !== `Bearer ${secret}`) {
+      res.writeHead(401).end("Unauthorized");
+      return;
+    }
+    try {
+      const result = await getArtworkInvoices();
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }).end(JSON.stringify(result));
+    } catch (error) {
+      console.error("Printavo read-only test failed:", error.message);
+      res.writeHead(502, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }).end(JSON.stringify({ ok: false, error: "Printavo query failed; inspect Render logs" }));
+    }
     return;
   }
 
