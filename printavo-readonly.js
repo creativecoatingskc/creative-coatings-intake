@@ -31,7 +31,7 @@ export async function getArtworkInvoices() {
   let cursor = null;
   do {
     const data = await graphql(`query($after:String) {
-      statuses(first:100,after:$after) {
+      statuses(first:25,after:$after) {
         nodes { id name }
         pageInfo { hasNextPage endCursor }
       }
@@ -47,7 +47,7 @@ export async function getArtworkInvoices() {
   cursor = null;
   do {
     const data = await graphql(`query($ids:[ID!],$after:String) {
-      invoices(statusIds:$ids,first:50,after:$after) {
+      invoices(statusIds:$ids,first:25,after:$after) {
         nodes {
           id visualId nickname url dueAt productionNote
           contact { fullName }
