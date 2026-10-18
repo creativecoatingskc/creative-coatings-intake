@@ -17,6 +17,12 @@ const TROY_STATUSES = [
   "READY TO SCHEDULE",
   "EMAIL - IN PRODUCTION",
 ];
+const BRYAN_STATUSES = [
+  "QUOTE",
+  "EMAIL - QUOTE APPROVAL SENT",
+  "QUOTE DECLINED",
+  "BRYAN TO FOLLOW UP",
+];
 const normalize = s => String(s ?? "").replace(/[^a-z0-9]+/gi, " ").trim().toUpperCase();
 
 async function graphql(query, variables = {}) {
@@ -80,3 +86,5 @@ async function getInvoicesForStatuses(requestedStatuses) {
 
 export async function getArtworkInvoices() { return getInvoicesForStatuses(ARTWORK_STATUSES); }
 export async function getTroyInvoices() { return getInvoicesForStatuses(TROY_STATUSES); }
+
+export async function getBryanInvoices() { return getInvoicesForStatuses(BRYAN_STATUSES); }
