@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Creative Coatings Artwork Report</title>
+<style>body{font:16px system-ui;margin:32px auto;max-width:960px;padding:0 20px}input,button{padding:10px;margin:5px}input{max-width:85%;width:360px}table{border-collapse:collapse;width:100%;margin:18px 0}td,th{text-align:left;border-bottom:1px solid #ddd;padding:8px}#status{color:#444}h2{margin-top:32px}</style></head>
+<body><h1>Creative Coatings - Artwork Invoice Report</h1>
+<p>Enter your Render integration access token to load the live, read-only invoice report. The token stays in this page and is sent only to this service over HTTPS.</p>
+<input id="secret" type="password" placeholder="Integration access token" autocomplete="off"><button id="load">Load report</button><button id="download" disabled>Download report CSV</button>
+<p id="status" role="status"></p><main id="result"></main>
+<script>
+const names=["Jen to Create Artwork","Design in Process / Introduction","EMAIL - Art Approval Sent","Art Declined","Artwork Approved - Prep for Production"];
+const normalize=s=>String(s||"").replace(/[^a-z0-9]+/gi," ").trim().toUpperCase();
+let records=[];
+document.getElementById("load").onclick=async()=>{
+const status=document.getElementById("status");status.textContent="Loading...";
+try {
+const secret=document.getElementById("secret").value;
+const response=await fetch("/internal/printavo/artwork-invoices",{headers:{"Authorization":"Bearer "+secret},cache:"no-store"});
+document.getElementById("secret").value="";
+if(!response.ok)throw new Error("Request failed (HTTP "+response.status+"). Verify your access token.");
+const data=await response.json();records=data.invoices;
+const root=document.getElementById("result");root.replaceChildren();
+const heading=document.createElement("h2");heading.textContent=records.length+" invoices";root.append(heading);
+for(const name of names){
+const matching=records.filter(x=>normalize(x.status)===normalize(name));
+const title=document.createElement("h3");title.textContent=name+" ("+matching.length+")";root.append(title);
+const table=document.createElement("table");const head=document.createElement("tr");
+for(const text of ["Invoice","Customer","Job","Due date"]){const th=document.createElement("th");th.textContent=text;head.append(th)}table.append(head);
+for(const item of matching){
+const tr=document.createElement("tr");
+const td=document.createElement("td");const link=document.createElement("a");link.textContent=item.invoiceNumber||item.id;link.href=item.url||"#";link.target="_blank";link.rel="noopener noreferrer";td.append(link);tr.append(td);
+for(const text of [item.customer,item.job,item.dueAt||""]){const cell=document.createElement("td");cell.textContent=text||"";tr.append(cell)}table.append(tr);
+}root.append(table);
+}
+document.getElementById("download").disabled=false;status.textContent="Report loaded successfully.";
+}catch(err){status.textContent=err.message}
+};
+document.getElementById("download").onclick=()=>{
+const fields=["invoiceNumber","customer","job","status","dueAt","url","notes"];
+const csv=[fields.join(","),...records.map(x=>fields.map(f=>'"'+String(x[f]||"").replace(/"/g,'""')+'"').join(","))].join("\r\n");
+const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));link.download="creative-coatings-artwork-invoices.csv";link.click();URL.revokeObjectURL(link.href);
+};
+</script></body></html>
