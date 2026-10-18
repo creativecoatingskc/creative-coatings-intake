@@ -199,6 +199,7 @@ function createAppServer() {
         missingStatuses: z.array(z.string())
       },
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+      _meta: { "openai/toolInvocation/invoking": "Reading artwork invoices...", "openai/toolInvocation/invoked": "Artwork invoices retrieved." },
     },
     async () => {
       const result = await getArtworkInvoices();
