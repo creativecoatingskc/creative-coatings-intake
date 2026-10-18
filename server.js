@@ -325,6 +325,7 @@ async function testPrintavoConnection() {
         statusFields: check.data?.statusType?.fields?.map(f=>f.name) ?? [],
         invoiceFields: check.data?.invoiceType?.fields?.map(f=>f.name) ?? [],
         statusCountFirstPage: names.length,
+        statusNames: names,
         hasMoreStatuses: check.data?.statuses?.pageInfo?.hasNextPage ?? null,
         matchingStatuses: wanted.filter(n=>names.some(v=>v.trim().toUpperCase()===n)),
         missingStatuses: wanted.filter(n=>!names.some(v=>v.trim().toUpperCase()===n)),
