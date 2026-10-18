@@ -272,8 +272,33 @@ const httpServer = createServer(async (req, res) => {
   res.writeHead(404).end("Not Found");
 });
 
+// Test-only startup probe: verifies Printavo connectivity without logging secrets or invoices.
+async function testPrintavoConnection() {
+  if (process.env.PRINTAVO_CONNECTION_TEST !== "true") return;
+  try {
+    const response = await fetch("https://www.printavo.com/api/v2", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        email: process.env.PRINTAVO_EMAIL ?? "",
+        token: process.env.PRINTAVO_API_TOKEN ?? "",
+      },
+      body: JSON.stringify({ query: "{ __typename }" }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await response.json().catch(() => ({}));
+    console.log("PRINTAVO_TEST_RESULT", JSON.stringify({
+      httpStatus: response.status,
+      authenticated: response.ok && !data.errors?.length,
+      graphqlType: data.data?.__typename ?? null,
+      errorCategories: (data.errors ?? []).map(e => e.extensions?.code ?? "graphql_error"),
+    }));
+  } catch (error) {
+    console.log("PRINTAVO_TEST_RESULT", JSON.stringify({ authenticated: false, errorType: error.name }));
+  }
+}
+
 httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `Creative Coatings intake MCP listening on http://0.0.0.0:${PORT}${MCP_PATH}`
-  );
+  console.log(`Creative Coatings intake MCP listening on port ${PORT}`);
+  void testPrintavoConnection();
 });
