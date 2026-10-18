@@ -7,6 +7,16 @@ const ARTWORK_STATUSES = [
   "ART DECLINED",
   "ARTWORK APPROVED - PREP FOR PRODUCTION",
 ];
+const TROY_STATUSES = [
+  "QUOTE APPROVED",
+  "NON WRAP - FULL PAYMENT REQUEST",
+  "50% DEPOSIT REQUEST - WRAPS",
+  "DEPOSIT RECEIVED - READY FOR DESIGNER - PRINT WORK ORDER",
+  "APPAREL PAID - ADD INVENTORY TO CART",
+  "READY FOR PRODUCTION",
+  "READY TO SCHEDULE",
+  "EMAIL - IN PRODUCTION",
+];
 const normalize = s => String(s ?? "").replace(/[^a-z0-9]+/gi, " ").trim().toUpperCase();
 
 async function graphql(query, variables = {}) {
@@ -25,8 +35,8 @@ async function graphql(query, variables = {}) {
   return payload.data;
 }
 
-export async function getArtworkInvoices() {
-  const wanted = new Set(ARTWORK_STATUSES.map(normalize));
+async function getInvoicesForStatuses(requestedStatuses) {
+  const wanted = new Set(requestedStatuses.map(normalize));
   const statuses = [];
   let cursor = null;
   do {
@@ -41,7 +51,7 @@ export async function getArtworkInvoices() {
     cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
   } while (cursor);
   const matching = statuses.filter(s => wanted.has(normalize(s.name)));
-  const missing = ARTWORK_STATUSES.filter(name => !matching.some(s => normalize(s.name) === normalize(name)));
+  const missing = requestedStatuses.filter(name => !matching.some(s => normalize(s.name) === normalize(name)));
   if (!matching.length) return { invoices: [], matchingStatuses: [], missingStatuses: missing };
   const invoices = [];
   cursor = null;
@@ -67,3 +77,6 @@ export async function getArtworkInvoices() {
   } while (cursor);
   return { invoices, matchingStatuses: matching, missingStatuses: missing };
 }
+
+export async function getArtworkInvoices() { return getInvoicesForStatuses(ARTWORK_STATUSES); }
+export async function getTroyInvoices() { return getInvoicesForStatuses(TROY_STATUSES); }
