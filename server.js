@@ -329,7 +329,8 @@ function createAppServer() {
       amountPaid: z.number().nullable(), amountOutstanding: z.number().nullable(),
       paidInFull: z.boolean().nullable()
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true }
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    _meta: { "openai/toolInvocation/invoking": "Reading invoice financials...", "openai/toolInvocation/invoked": "Invoice financials retrieved." }
   }, async ({ invoiceId }) => {
     const i = await getInvoiceFinancials(invoiceId);
     const asNumber = v => v == null ? null : Number(v);
