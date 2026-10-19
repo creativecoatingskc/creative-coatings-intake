@@ -98,3 +98,30 @@ export async function getTroyInvoices() { return getInvoicesForStatuses(TROY_STA
 export async function getBryanInvoices() { return getInvoicesForStatuses(BRYAN_STATUSES); }
 
 export async function getMadysenInvoices() { return getInvoicesForStatuses(MADYSEN_STATUSES); }
+
+export async function getInvoiceFinancials(invoiceId) {
+  if (!/^\\d+$/.test(String(invoiceId))) throw new Error("Invalid Printavo invoice ID");
+  const data = await graphql(`query($id:ID!) {
+    invoice(id:$id) {
+      id visualId nickname url
+      status { name }
+      subtotal total amountPaid amountOutstanding paidInFull
+    }
+  }`, { id: String(invoiceId) });
+  if (!data.invoice) throw new Error("Invoice not found");
+  return data.invoice;
+}
+
+export async function getFinancialSchema() {
+  const data = await graphql(`query {
+    invoice: __type(name:"Invoice") { fields { name type { kind name ofType { kind name } } } }
+    transaction: __type(name:"Transaction") { fields { name type { kind name ofType { kind name } } } }
+    paymentRequest: __type(name:"PaymentRequest") { fields { name type { kind name ofType { kind name } } } }
+  }`);
+  const names = ["transactions","paymentRequest","approvalRequests","total","amountPaid","amountOutstanding","paidInFull"];
+  return {
+    invoice: (data.invoice?.fields ?? []).filter(f => names.includes(f.name)),
+    transaction: (data.transaction?.fields ?? []).map(f => f.name),
+    paymentRequest: (data.paymentRequest?.fields ?? []).map(f => f.name)
+  };
+}
