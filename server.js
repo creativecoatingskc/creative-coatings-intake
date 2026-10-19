@@ -1,4 +1,4 @@
-import { getArtworkInvoices, getTroyInvoices, getBryanInvoices, getMadysenInvoices } from "./printavo-readonly.js";
+import { getArtworkInvoices, getTroyInvoices, getBryanInvoices, getMadysenInvoices, getInvoiceFinancials, getFinancialSchema } from "./printavo-readonly.js";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import nodemailer from "nodemailer";
@@ -318,6 +318,32 @@ function createAppServer() {
     }
   );
 
+  registerAppTool(server, "get_printavo_invoice_financials", {
+    title: "Read Printavo invoice totals and payments",
+    description: "Read-only lookup of invoice subtotal, total, amount paid, amount outstanding and paid-in-full flag by Printavo invoice internal ID. Does not verify the required deposit or individual payment transactions.",
+    inputSchema: { invoiceId: z.string().regex(/^\\d+$/) },
+    outputSchema: {
+      id: z.string(), invoiceNumber: z.string().nullable(), job: z.string(),
+      status: z.string(), url: z.string().nullable(),
+      subtotal: z.number().nullable(), total: z.number().nullable(),
+      amountPaid: z.number().nullable(), amountOutstanding: z.number().nullable(),
+      paidInFull: z.boolean().nullable()
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true }
+  }, async ({ invoiceId }) => {
+    const i = await getInvoiceFinancials(invoiceId);
+    const asNumber = v => v == null ? null : Number(v);
+    const data = {
+      id: String(i.id), invoiceNumber: i.visualId == null ? null : String(i.visualId),
+      job: String(i.nickname || ""), status: String(i.status?.name || ""),
+      url: i.url == null ? null : String(i.url), subtotal: asNumber(i.subtotal),
+      total: asNumber(i.total), amountPaid: asNumber(i.amountPaid),
+      amountOutstanding: asNumber(i.amountOutstanding),
+      paidInFull: i.paidInFull == null ? null : Boolean(i.paidInFull)
+    };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+  });
+
   return server;
 }
 
@@ -504,4 +530,7 @@ async function testPrintavoConnection() {
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`Creative Coatings intake MCP listening on port ${PORT}`);
   void testPrintavoConnection();
+  if (process.env.PRINTAVO_FINANCIAL_SCHEMA_TEST === "true") {
+    void getFinancialSchema().then(schema => console.log("PRINTAVO_FINANCIAL_SCHEMA", JSON.stringify(schema))).catch(e => console.log("PRINTAVO_FINANCIAL_SCHEMA_ERROR", String(e.message).slice(0,300)));
+  }
 });
