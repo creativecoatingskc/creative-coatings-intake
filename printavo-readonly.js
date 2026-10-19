@@ -17,6 +17,14 @@ const TROY_STATUSES = [
   "READY TO SCHEDULE",
   "EMAIL - IN PRODUCTION",
 ];
+const MADYSEN_STATUSES = [
+  "READY FOR PRODUCTION",
+  "READY TO SCHEDULE",
+  "INSTALL SCHEDULED - READY FOR INSTALLER",
+  "EMAIL - IN PRODUCTION",
+  "EMAIL - ORDER READY FOR PICKUP",
+  "ORDER ON HOLD (ISSUE)",
+];
 const BRYAN_STATUSES = [
   "QUOTE",
   "EMAIL - QUOTE APPROVAL SENT",
@@ -88,3 +96,5 @@ export async function getArtworkInvoices() { return getInvoicesForStatuses(ARTWO
 export async function getTroyInvoices() { return getInvoicesForStatuses(TROY_STATUSES); }
 
 export async function getBryanInvoices() { return getInvoicesForStatuses(BRYAN_STATUSES); }
+
+export async function getMadysenInvoices() { return getInvoicesForStatuses(MADYSEN_STATUSES); }
