@@ -1,0 +1,39 @@
+<section id="cc-wrap-form" style="max-width:740px;margin:24px auto;padding:24px;border-top:4px solid #b88600;background:#192125;color:#f2ede3;font-family:Arial,sans-serif;border-radius:8px"><header style="margin-bottom:18px"><strong style="font-size:21px;font-style:italic">CREATIVE COATINGS</strong><span style="margin-left:14px;border-left:2px solid #b88600;padding-left:14px;color:#d5ad4c">Brand Your Business.</span><h2 style="color:#f2ede3">Commercial Vehicle Wrap Quote</h2><p>Tell us about your business and vehicles. We'll review your project and follow up.</p></header><form id="cc-commercial-form"><div id="cc-fields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px"></div><label style="display:none">Website<input name="website" autocomplete="off" tabindex="-1"></label><button type="submit" style="background:#b88600;color:#192125;border:0;border-radius:5px;padding:13px 20px;margin-top:20px;font-weight:bold;cursor:pointer">Request My Quote</button><p id="cc-result" role="status" aria-live="polite"></p><small>By submitting, you agree that Creative Coatings may contact you about this quote request. We won't send promotional messages without separate consent.</small></form></section>
+<script>
+(()=>{
+const endpoint="REPLACE_WITH_RENDER_PREVIEW_URL/api/commercial-wrap";
+const fields=[
+["businessName","Business name","text",true],["firstName","First name","text",true],["lastName","Last name","text",true],["email","Email","email",true],["phone","Phone","tel",true],
+["vehicleType","Vehicle type","select",true,["Pickup truck","Work van","Transit / Sprinter van","Box truck","Trailer","SUV / Car","Other"]],
+["vehicleCount","Number of vehicles","number",true],["vehicleDetails","Year / make / model","text",false],
+["coverage","Wrap coverage","select",true,["Lettering / logos","Partial wrap","Full wrap","Not sure"]],
+["artworkStatus","Artwork status","select",true,["Print-ready","Have logo / brand assets","Need design","Not sure"]],
+["timeline","Ideal timeline","select",true,["ASAP","Within 2 weeks","Within 1 month","1–3 months","Exploring"]],
+["budget","Approximate budget (optional)","text",false],["notes","Additional details","textarea",false]
+];
+const root=document.getElementById("cc-fields");
+fields.forEach(([name,label,type,required,options])=>{
+ const wrap=document.createElement("label");wrap.style.cssText="display:flex;flex-direction:column;gap:6px;font-size:14px";
+ const title=document.createElement("span");title.textContent=label+(required?" *":"");wrap.append(title);
+ let el=document.createElement(type==="select"?"select":type==="textarea"?"textarea":"input");
+ if(type!=="select"&&type!=="textarea")el.type=type;
+ el.name=name;el.required=required;el.style.cssText="padding:10px;border:1px solid #b6aa8b;border-radius:4px;background:#fff;color:#192125;min-width:0";
+ if(name==="vehicleCount"){el.min="1";el.max="1000";el.value="1";}
+ if(type==="select"){const blank=document.createElement("option");blank.value="";blank.textContent="Select one";el.append(blank);options.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;el.append(o);});}
+ wrap.append(el);root.append(wrap);
+});
+const form=document.getElementById("cc-commercial-form"),msg=document.getElementById("cc-result"),btn=form.querySelector("button");
+form.addEventListener("submit",async e=>{
+ e.preventDefault();btn.disabled=true;msg.textContent="Sending your request...";
+ const data=Object.fromEntries(new FormData(form).entries());
+ data.submissionId=form.dataset.submissionId||(form.dataset.submissionId=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+"-"+Math.random().toString(36).slice(2)));
+ try{
+ const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+ const response=await r.json();
+ if(!r.ok||!response.ok)throw Error(response.error||"Submission failed");
+ msg.textContent="Thank you! Your request has been received. Reference: "+response.reference;
+ form.reset();delete form.dataset.submissionId;
+ }catch(err){msg.textContent="Unable to submit right now. Please call Creative Coatings. "+err.message;}finally{btn.disabled=false;}
+});
+})();
+</script>
