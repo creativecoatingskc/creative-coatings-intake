@@ -48,7 +48,28 @@ async function sendConfirmation(email,firstName) {
   if(!sendResponse.ok) throw new Error("Gmail API send failed: "+sendResponse.status+" "+(await sendResponse.text()).slice(0,400));
   return true;
 }
-async function processLead(d) {
+const ALLOWED_EXTENSIONS=new Set(["ai","eps","pdf","svg","png","jpg","jpeg","webp"]);
+async function uploadDealFiles(files,dealId) {
+  if(!files.length)return [];
+  const ids=[];
+  for(const file of files) {
+    const name=String(file.name||"upload").replace(/[^a-zA-Z0-9._ -]/g,"_").slice(0,120);
+    const ext=name.split(".").pop().toLowerCase();
+    if(!ALLOWED_EXTENSIONS.has(ext)||file.size>25*1024*1024||file.size===0)throw new Error("Invalid artwork file");
+    const payload=new FormData();
+    payload.append("file",file,name);
+    payload.append("folderPath","/Creative Coatings/Customer Artwork");
+    payload.append("options",JSON.stringify({access:"PRIVATE",overwrite:false,duplicateValidationStrategy:"NONE",duplicateValidationScope:"ENTIRE_PORTAL"}));
+    const response=await fetch("https://api.hubapi.com/files/v3/files",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:payload});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.id)throw new Error("HubSpot file upload failed ("+response.status+"): "+JSON.stringify(result).slice(0,300));
+    ids.push(String(result.id));
+  }
+  const note=await hubspot("/crm/v3/objects/notes","POST",{properties:{hs_timestamp:new Date().toISOString(),hs_note_body:"Customer-provided artwork and vehicle photos ("+ids.length+" file(s)). Open attachments on this note.",hs_attachment_ids:ids.join(";")}});
+  await hubspot("/crm/v4/objects/notes/"+note.id+"/associations/default/deals/"+dealId,"PUT");
+  return ids;
+}
+async function processLead(d,files=[]) {
   const email=clean(d.email).toLowerCase();
   let contact;
   try { contact=await hubspot("/crm/v3/objects/contacts/"+encodeURIComponent(email)+"?idProperty=email","GET"); }
@@ -62,9 +83,9 @@ async function processLead(d) {
   const isNew=!deal;
   if(!deal) deal=await hubspot("/crm/v3/objects/deals","POST",{properties:{dealname:dealName,pipeline:"default",dealstage:"4494748354",service_category:"vehicle_wraps",description:details}});
   await hubspot("/crm/v4/objects/deals/"+deal.id+"/associations/default/contacts/"+contact.id,"PUT");
-  let emailed=false,emailError=null;
+  let uploadError=null,uploadedFiles=0;\n  try {const uploaded=await uploadDealFiles(files,deal.id);uploadedFiles=uploaded.length;} catch(e){uploadError="File upload failed; contact shop to provide artwork";console.error("Artwork upload failed",e);}\n  let emailed=false,emailError=null;
   try { if(isNew) emailed=await sendConfirmation(email,clean(d.firstName)); } catch(e) {emailError="Customer email failed; review server logs";console.error(e);}
-  return {dealId:deal.id,contactId:contact.id,emailed,emailError};
+  return {dealId:deal.id,contactId:contact.id,emailed,emailError,uploadedFiles,uploadError};
 }
 const server=createServer(async(req,res)=>{
   const url=new URL(req.url||"/","http://localhost");
@@ -98,8 +119,22 @@ const server=createServer(async(req,res)=>{
   const now=Date.now();const recent=(hits.get(ip)||[]).filter(t=>now-t<600000);
   if(recent.length>=5) return json(res,429,{error:"Too many requests"});
   recent.push(now);hits.set(ip,recent);
-  let raw="";for await(const chunk of req){raw+=chunk;if(raw.length>16000)return json(res,413,{error:"Too large"});}
-  let d;try{d=JSON.parse(raw);}catch{return json(res,400,{error:"Invalid JSON"});}
+  const multipart=(req.headers["content-type"]||"").startsWith("multipart/form-data;");
+  let d,files=[];
+  if(multipart) {
+    const chunks=[];let bytes=0;
+    for await(const chunk of req){bytes+=chunk.length;if(bytes>60*1024*1024)return json(res,413,{error:"Files exceed 60 MB total"});chunks.push(chunk);}
+    try {
+      const request=new Request("http://localhost/upload",{method:"POST",headers:{"content-type":req.headers["content-type"]},body:Buffer.concat(chunks)});
+      const form=await request.formData();d={};
+      for(const [key,value] of form.entries()){if(key==="artworkFiles"&&typeof value!=="string")files.push(value);else if(typeof value==="string")d[key]=value;}
+      if(files.length>10)return json(res,400,{error:"Maximum 10 files"});
+      if(files.some(file=>file.size>25*1024*1024||file.size===0||!ALLOWED_EXTENSIONS.has(String(file.name).split(".").pop().toLowerCase())))return json(res,400,{error:"Invalid file type or size (25 MB maximum per file)"});
+    }catch(e){return json(res,400,{error:"Unable to read uploaded files"});}
+  } else {
+    let raw="";for await(const chunk of req){raw+=chunk;if(raw.length>16000)return json(res,413,{error:"Too large"});}
+    try{d=JSON.parse(raw);}catch{return json(res,400,{error:"Invalid JSON"});}
+  }
   if(d.website) return json(res,200,{ok:true});
   if(process.env.TEST_ONLY_EMAIL && clean(d.email).toLowerCase()!==process.env.TEST_ONLY_EMAIL.toLowerCase()) return json(res,403,{error:"Test service only accepts the authorized test email"});
   if(fields.some(f=>!clean(d[f])))return json(res,400,{error:"Please complete all required fields"});
@@ -110,8 +145,8 @@ const server=createServer(async(req,res)=>{
   if(!/^[a-zA-Z0-9-]{12,80}$/.test(key))return json(res,400,{error:"Missing submission reference"});
   if(completed.has(key))return json(res,200,{ok:true,duplicate:true,reference:completed.get(key)});
   if(pending.has(key)) { try { const result=await pending.get(key);return json(res,200,{ok:true,duplicate:true,reference:result.dealId}); } catch {return json(res,502,{error:"The request could not be completed. Contact the shop before retrying."});} }
-  const job=processLead(d);pending.set(key,job);
-  try{const result=await job;completed.set(key,result.dealId);return json(res,200,{ok:true,reference:result.dealId,emailSent:result.emailed,emailWarning:result.emailError});}
+  const job=processLead(d,files);pending.set(key,job);
+  try{const result=await job;completed.set(key,result.dealId);return json(res,200,{ok:true,reference:result.dealId,emailSent:result.emailed,emailWarning:result.emailError,uploadedFiles:result.uploadedFiles,uploadWarning:result.uploadError});}
   catch(e){console.error("Lead processing failed",e);return json(res,502,{error:"We could not confirm your request. Please call the shop before resubmitting."});}
   finally{pending.delete(key);}
 });
