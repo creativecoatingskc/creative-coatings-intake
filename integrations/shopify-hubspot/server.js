@@ -76,14 +76,16 @@ async function processLead(d,files=[]) {
   catch(e) { if(!e.message.startsWith("HubSpot 404:")) throw e;
     contact=await hubspot("/crm/v3/objects/contacts","POST",{properties:{email,firstname:clean(d.firstName),lastname:clean(d.lastName),phone:clean(d.phone),company:clean(d.businessName)}});
   }
-  const details=["Business: "+clean(d.businessName),"Vehicle: "+clean(d.vehicleType),"Quantity: "+clean(d.vehicleCount),"Year/make/model: "+clean(d.vehicleDetails),"Coverage: "+clean(d.coverage),"Artwork: "+clean(d.artworkStatus),"Timeline: "+clean(d.timeline),"Budget: "+clean(d.budget),"Notes: "+clean(d.notes)].join("\n");
+  const details=["Business: "+clean(d.businessName),"Vehicle: "+clean(d.vehicleType),"Quantity: "+clean(d.vehicleCount),"Year/make/model: "+clean(d.vehicleDetails),"Coverage: "+clean(d.coverage),"Artwork: "+clean(d.artworkStatus),"Design requested: "+(d.needsArtworkDesign==="yes"?"Yes":"No"),"Timeline: "+clean(d.timeline),"Budget: "+clean(d.budget),"Notes: "+clean(d.notes)].join("\n");
   const dealName=(process.env.TEST_ONLY_EMAIL ? "TEST - " : "")+clean(d.businessName)+" - Commercial Wrap Quote [ref:"+clean(d.submissionId)+"]";
   const matches=await hubspot("/crm/v3/objects/deals/search","POST",{filterGroups:[{filters:[{propertyName:"dealname",operator:"EQ",value:dealName}]}],limit:2,properties:["dealname"]});
   let deal=matches.results?.[0];
   const isNew=!deal;
   if(!deal) deal=await hubspot("/crm/v3/objects/deals","POST",{properties:{dealname:dealName,pipeline:"default",dealstage:"4494748354",service_category:"vehicle_wraps",description:details}});
   await hubspot("/crm/v4/objects/deals/"+deal.id+"/associations/default/contacts/"+contact.id,"PUT");
-  let uploadError=null,uploadedFiles=0;\n  try {const uploaded=await uploadDealFiles(files,deal.id);uploadedFiles=uploaded.length;} catch(e){uploadError="File upload failed; contact shop to provide artwork";console.error("Artwork upload failed",e);}\n  let emailed=false,emailError=null;
+  let uploadError=null,uploadedFiles=0;
+  try {const uploaded=await uploadDealFiles(files,deal.id);uploadedFiles=uploaded.length;} catch(e){uploadError="File upload failed; contact shop to provide artwork";console.error("Artwork upload failed",e);}
+  let emailed=false,emailError=null;
   try { if(isNew) emailed=await sendConfirmation(email,clean(d.firstName)); } catch(e) {emailError="Customer email failed; review server logs";console.error(e);}
   return {dealId:deal.id,contactId:contact.id,emailed,emailError,uploadedFiles,uploadError};
 }
