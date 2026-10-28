@@ -1,4 +1,4 @@
-<section id="cc-wrap-form" style="max-width:740px;margin:24px auto;padding:24px;border-top:4px solid #b88600;background:#192125;color:#f2ede3;font-family:Arial,sans-serif;border-radius:8px"><header style="margin-bottom:18px"><strong style="font-size:21px;font-style:italic">CREATIVE COATINGS</strong><span style="margin-left:14px;border-left:2px solid #b88600;padding-left:14px;color:#d5ad4c">Brand Your Business.</span><h2 style="color:#f2ede3">Commercial Vehicle Wrap Quote</h2><p>Tell us about your business and vehicles. We'll review your project and follow up.</p></header><form id="cc-commercial-form"><div id="cc-fields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px"></div><label style="display:none">Website<input name="website" autocomplete="off" tabindex="-1"></label><button type="submit" style="background:#b88600;color:#192125;border:0;border-radius:5px;padding:13px 20px;margin-top:20px;font-weight:bold;cursor:pointer">Request My Quote</button><p id="cc-result" role="status" aria-live="polite"></p><small>By submitting, you agree that Creative Coatings may contact you about this quote request. We won't send promotional messages without separate consent.</small></form></section>
+<section id="cc-wrap-form" style="max-width:740px;margin:24px auto;padding:24px;border-top:4px solid #b88600;background:#192125;color:#f2ede3;font-family:Arial,sans-serif;border-radius:8px"><header style="margin-bottom:18px"><strong style="font-size:21px;font-style:italic">CREATIVE COATINGS</strong><span style="margin-left:14px;border-left:2px solid #b88600;padding-left:14px;color:#d5ad4c">Brand Your Business.</span><h2 style="color:#f2ede3">Commercial Vehicle Wrap Quote</h2><p>Tell us about your business and vehicles. We'll review your project and follow up.</p></header><form id="cc-commercial-form"><div id="cc-fields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px"></div><div style="margin-top:18px"><label style="display:block;font-weight:bold;margin-bottom:8px">Upload logos, artwork, or vehicle photos (optional)</label><input name="artworkFiles" type="file" multiple accept=".ai,.eps,.pdf,.svg,.png,.jpg,.jpeg,.webp" style="max-width:100%;color:#f2ede3"><p style="font-size:12px;color:#ddd">Up to 10 files, 25 MB each; 60 MB total. AI, EPS, PDF, SVG, PNG, JPG, WEBP.</p><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="needsArtworkDesign" value="yes"> I need Creative Coatings to create my artwork.</label></div><label style="display:none">Website<input name="website" autocomplete="off" tabindex="-1"></label><button type="submit" style="background:#b88600;color:#192125;border:0;border-radius:5px;padding:13px 20px;margin-top:20px;font-weight:bold;cursor:pointer">Request My Quote</button><p id="cc-result" role="status" aria-live="polite"></p><small>By submitting, you agree that Creative Coatings may contact you about this quote request. We won't send promotional messages without separate consent.</small></form></section>
 <script>
 (()=>{
 const endpoint="REPLACE_WITH_RENDER_PREVIEW_URL/api/commercial-wrap";
@@ -25,13 +25,13 @@ fields.forEach(([name,label,type,required,options])=>{
 const form=document.getElementById("cc-commercial-form"),msg=document.getElementById("cc-result"),btn=form.querySelector("button");
 form.addEventListener("submit",async e=>{
  e.preventDefault();btn.disabled=true;msg.textContent="Sending your request...";
- const data=Object.fromEntries(new FormData(form).entries());
- data.submissionId=form.dataset.submissionId||(form.dataset.submissionId=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+"-"+Math.random().toString(36).slice(2)));
+ const data=new FormData(form);
+ data.set("submissionId",form.dataset.submissionId||(form.dataset.submissionId=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+"-"+Math.random().toString(36).slice(2))));
  try{
- const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+ const r=await fetch(endpoint,{method:"POST",body:data});
  const response=await r.json();
  if(!r.ok||!response.ok)throw Error(response.error||"Submission failed");
- msg.textContent="Thank you! Your request has been received. Reference: "+response.reference;
+ msg.textContent="Thank you! Your request has been received. Reference: "+response.reference+(response.uploadWarning?" Artwork upload needs attention; please contact our shop.":"");
  form.reset();delete form.dataset.submissionId;
  }catch(err){msg.textContent="Unable to submit right now. Please call Creative Coatings. "+err.message;}finally{btn.disabled=false;}
 });
