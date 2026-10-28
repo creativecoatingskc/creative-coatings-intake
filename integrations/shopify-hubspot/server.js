@@ -30,8 +30,22 @@ async function hubspot(path,method,body) {
 async function sendConfirmation(email,firstName) {
   if(!SEND_EMAIL) return false;
   if(!GOOGLE_CLIENT_ID||!GOOGLE_CLIENT_SECRET||!GOOGLE_REFRESH_TOKEN) throw new Error("Gmail OAuth configuration missing");
-  const transport=nodemailer.createTransport({service:"gmail",auth:{type:"OAuth2",user:"info@creativecoatingskc.com",clientId:GOOGLE_CLIENT_ID,clientSecret:GOOGLE_CLIENT_SECRET,refreshToken:GOOGLE_REFRESH_TOKEN}});
-  await transport.sendMail({from:"info@creativecoatingskc.com",to:email,subject:"We Received Your Wrap Quote Request | Creative Coatings",text:"Hi "+firstName+",\n\nThanks for reaching out to Creative Coatings!\n\nWe've received your commercial vehicle wrap request. Our team will review your project details and reach out if we need any additional information before preparing your quote.\n\nWe appreciate the opportunity to help brand your business!\n\nCreative Coatings\nBrand Your Business.\ncreativecoatingskc.com"});
+  const tokenResponse=await fetch("https://oauth2.googleapis.com/token",{
+    method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body:new URLSearchParams({client_id:GOOGLE_CLIENT_ID,client_secret:GOOGLE_CLIENT_SECRET,refresh_token:GOOGLE_REFRESH_TOKEN,grant_type:"refresh_token"})
+  });
+  const token=await tokenResponse.json();
+  if(!tokenResponse.ok||!token.access_token) throw new Error("Gmail OAuth token refresh failed: "+tokenResponse.status);
+  const subject="We Received Your Wrap Quote Request | Creative Coatings";
+  const body="Hi "+firstName+",\n\nThanks for reaching out to Creative Coatings!\n\nWe've received your commercial vehicle wrap request. Our team will review your project details and reach out if we need any additional information before preparing your quote.\n\nWe appreciate the opportunity to help brand your business!\n\nCreative Coatings\nBrand Your Business.\ncreativecoatingskc.com";
+  const message=["From: Creative Coatings <info@creativecoatingskc.com>","To: "+email,"Subject: "+subject,"MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","",body].join("\r\n");
+  const sendResponse=await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",{
+    method:"POST",
+    headers:{Authorization:"Bearer "+token.access_token,"Content-Type":"application/json"},
+    body:JSON.stringify({raw:Buffer.from(message,"utf8").toString("base64url")})
+  });
+  if(!sendResponse.ok) throw new Error("Gmail API send failed: "+sendResponse.status+" "+(await sendResponse.text()).slice(0,400));
   return true;
 }
 async function processLead(d) {
