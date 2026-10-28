@@ -11,6 +11,7 @@ const SMTP_USER = process.env.SMTP_USER || "";
 const SMTP_PASS = process.env.SMTP_PASS || "";
 const hits = new Map();
 const completed = new Map();
+const pending = new Map();
 const fields = ["businessName","firstName","lastName","email","phone","vehicleType","vehicleCount","coverage","artworkStatus","timeline"];
 const clean = v => String(v ?? "").trim().slice(0,2000);
 function json(res,status,value) { res.writeHead(status,{"content-type":"application/json","cache-control":"no-store","access-control-allow-origin":ORIGIN,"vary":"Origin"});res.end(JSON.stringify(value)); }
@@ -35,10 +36,14 @@ async function processLead(d) {
     contact=await hubspot("/crm/v3/objects/contacts","POST",{properties:{email,firstname:clean(d.firstName),lastname:clean(d.lastName),phone:clean(d.phone),company:clean(d.businessName)}});
   }
   const details=["Business: "+clean(d.businessName),"Vehicle: "+clean(d.vehicleType),"Quantity: "+clean(d.vehicleCount),"Year/make/model: "+clean(d.vehicleDetails),"Coverage: "+clean(d.coverage),"Artwork: "+clean(d.artworkStatus),"Timeline: "+clean(d.timeline),"Budget: "+clean(d.budget),"Notes: "+clean(d.notes)].join("\n");
-  const deal=await hubspot("/crm/v3/objects/deals","POST",{properties:{dealname:(process.env.TEST_ONLY_EMAIL ? "TEST - " : "")+clean(d.businessName)+" - Commercial Wrap Quote",pipeline:"default",dealstage:"4494748354",service_category:"vehicle_wraps",description:details}});
+  const dealName=(process.env.TEST_ONLY_EMAIL ? "TEST - " : "")+clean(d.businessName)+" - Commercial Wrap Quote [ref:"+clean(d.submissionId)+"]";
+  const matches=await hubspot("/crm/v3/objects/deals/search","POST",{filterGroups:[{filters:[{propertyName:"dealname",operator:"EQ",value:dealName}]}],limit:2,properties:["dealname"]});
+  let deal=matches.results?.[0];
+  const isNew=!deal;
+  if(!deal) deal=await hubspot("/crm/v3/objects/deals","POST",{properties:{dealname:dealName,pipeline:"default",dealstage:"4494748354",service_category:"vehicle_wraps",description:details}});
   await hubspot("/crm/v4/objects/deals/"+deal.id+"/associations/default/contacts/"+contact.id,"PUT");
   let emailed=false,emailError=null;
-  try { emailed=await sendConfirmation(email,clean(d.firstName)); } catch(e) {emailError="Customer email failed; review server logs";console.error(e);}
+  try { if(isNew) emailed=await sendConfirmation(email,clean(d.firstName)); } catch(e) {emailError="Customer email failed; review server logs";console.error(e);}
   return {dealId:deal.id,contactId:contact.id,emailed,emailError};
 }
 const server=createServer(async(req,res)=>{
@@ -63,7 +68,10 @@ const server=createServer(async(req,res)=>{
   const key=clean(d.submissionId);
   if(!/^[a-zA-Z0-9-]{12,80}$/.test(key))return json(res,400,{error:"Missing submission reference"});
   if(completed.has(key))return json(res,200,{ok:true,duplicate:true,reference:completed.get(key)});
-  try{const result=await processLead(d);completed.set(key,result.dealId);return json(res,200,{ok:true,reference:result.dealId,emailSent:result.emailed,emailWarning:result.emailError});}
-  catch(e){console.error("Lead processing failed",e);return json(res,502,{error:"We could not process the request. Please call the shop."});}
+  if(pending.has(key)) { try { const result=await pending.get(key);return json(res,200,{ok:true,duplicate:true,reference:result.dealId}); } catch {return json(res,502,{error:"The request could not be completed. Contact the shop before retrying."});} }
+  const job=processLead(d);pending.set(key,job);
+  try{const result=await job;completed.set(key,result.dealId);return json(res,200,{ok:true,reference:result.dealId,emailSent:result.emailed,emailWarning:result.emailError});}
+  catch(e){console.error("Lead processing failed",e);return json(res,502,{error:"We could not confirm your request. Please call the shop before resubmitting."});}
+  finally{pending.delete(key);}
 });
 server.listen(PORT,"0.0.0.0",()=>console.log("Commercial wrap intake listening on "+PORT));
