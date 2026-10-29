@@ -6,6 +6,7 @@ const TEST_FORM = readFileSync(new URL("./shopify-form.html", import.meta.url), 
 
 const RESTYLE_FORM = readFileSync(new URL("./restyling-form.html", import.meta.url), "utf8");
 const SIGNAGE_FORM = readFileSync(new URL("./signage-form.html", import.meta.url), "utf8");
+const PROMO_FORM = readFileSync(new URL("./promo-form.html", import.meta.url), "utf8");
 const PORT = Number(process.env.PORT || 8787);
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN || "";
 const ORIGIN = process.env.SHOPIFY_ORIGIN || "https://creativecoatingskc.com";
@@ -29,7 +30,7 @@ async function hubspot(path,method,body) {
   if(!r.ok) throw new Error("HubSpot "+r.status+": "+JSON.stringify(data).slice(0,300));
   return data;
 }
-async function sendConfirmation(email,firstName,restyling=false,signage=false) {
+async function sendConfirmation(email,firstName,restyling=false,signage=false,promo=false) {
   if(!SEND_EMAIL) return false;
   if(!GOOGLE_CLIENT_ID||!GOOGLE_CLIENT_SECRET||!GOOGLE_REFRESH_TOKEN) throw new Error("Gmail OAuth configuration missing");
   const tokenResponse=await fetch("https://oauth2.googleapis.com/token",{
@@ -39,8 +40,8 @@ async function sendConfirmation(email,firstName,restyling=false,signage=false) {
   });
   const token=await tokenResponse.json();
   if(!tokenResponse.ok||!token.access_token) throw new Error("Gmail OAuth token refresh failed: "+tokenResponse.status);
-  const subject=signage?"We Received Your Business Signage Request | Creative Coatings":restyling?"We Received Your Vehicle Restyling Request | Creative Coatings":"We Received Your Wrap Quote Request | Creative Coatings";
-  const body="Hi "+firstName+",\n\nThanks for reaching out to Creative Coatings!\n\nWe've received your "+(signage?"business signage":restyling?"vehicle restyling":"commercial vehicle wrap")+" request. Our team will review your project details and reach out if we need any additional information before preparing your quote.\n\nWe appreciate the opportunity to help brand your business!\n\nCreative Coatings\nBrand Your Business.\ncreativecoatingskc.com";
+  const subject=promo?"We Received Your Promotional Products Request | Creative Coatings":signage?"We Received Your Business Signage Request | Creative Coatings":restyling?"We Received Your Vehicle Restyling Request | Creative Coatings":"We Received Your Wrap Quote Request | Creative Coatings";
+  const body="Hi "+firstName+",\n\nThanks for reaching out to Creative Coatings!\n\nWe've received your "+(promo?"promotional products":signage?"business signage":restyling?"vehicle restyling":"commercial vehicle wrap")+" request. Our team will review your project details and reach out if we need any additional information before preparing your quote.\n\nWe appreciate the opportunity to help brand your business!\n\nCreative Coatings\nBrand Your Business.\ncreativecoatingskc.com";
   const message=["From: Creative Coatings <info@creativecoatingskc.com>","To: "+email,"Subject: "+subject,"MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","",body].join("\r\n");
   const sendResponse=await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",{
     method:"POST",
@@ -71,24 +72,24 @@ async function uploadDealFiles(files,dealId) {
   await hubspot("/crm/v4/objects/notes/"+note.id+"/associations/default/deals/"+dealId,"PUT");
   return ids;
 }
-async function processLead(d,files=[],restyling=false,signage=false) {
+async function processLead(d,files=[],restyling=false,signage=false,promo=false) {
   const email=clean(d.email).toLowerCase();
   let contact;
   try { contact=await hubspot("/crm/v3/objects/contacts/"+encodeURIComponent(email)+"?idProperty=email","GET"); }
   catch(e) { if(!e.message.startsWith("HubSpot 404:")) throw e;
     contact=await hubspot("/crm/v3/objects/contacts","POST",{properties:{email,firstname:clean(d.firstName),lastname:clean(d.lastName),phone:clean(d.phone),company:clean(d.businessName)}});
   }
-  const details=signage?["Business: "+clean(d.businessName),"Signage: "+clean(d.signageType),"Quantity: "+clean(d.quantity),"Dimensions: "+clean(d.dimensions),"Artwork: "+clean(d.artworkStatus),"Installation: "+clean(d.installation),"Banner use: "+clean(d.bannerUse),"Banner finish: "+clean(d.bannerFinish),"Printed sides: "+clean(d.signSides),"Stakes: "+clean(d.stakes),"Surface / location: "+clean(d.signSurface),"Window graphics: "+clean(d.windowCoverage),"Decal use: "+clean(d.decalUse),"Other details: "+clean(d.customDetails),"Timeline: "+clean(d.timeline),"Budget: "+clean(d.budget),"Notes: "+clean(d.notes)].join("\n"):restyling?["Service: "+clean(d.service),"Vehicle: "+clean(d.vehicleDetails),"Windows: "+clean(d.tintWindows),"Film: "+clean(d.tintFilm),"Desired color: "+clean(d.desiredColor),"Wrap coverage: "+clean(d.wrapCoverage),"Door jambs: "+clean(d.doorJambs),"PPF coverage: "+clean(d.ppfCoverage),"PPF finish: "+clean(d.ppfFinish),"Chrome areas: "+clean(d.chromeAreas),"Custom style: "+clean(d.customStyle),"Timeline: "+clean(d.timeline),"Budget: "+clean(d.budget),"Notes: "+clean(d.notes)].join("\n"):["Business: "+clean(d.businessName),"Vehicle: "+clean(d.vehicleType),"Quantity: "+clean(d.vehicleCount),"Year/make/model: "+clean(d.vehicleDetails),"Coverage: "+clean(d.coverage),"Artwork: "+clean(d.artworkStatus),"Design requested: "+(d.needsArtworkDesign==="yes"?"Yes":"No"),"Timeline: "+clean(d.timeline),"Budget: "+clean(d.budget),"Notes: "+clean(d.notes)].join("\n");
-  const dealName=(process.env.TEST_ONLY_EMAIL ? "TEST - " : "")+(signage?clean(d.businessName)+" - "+clean(d.signageType)+" Signage Quote":restyling?(clean(d.firstName)+" "+clean(d.lastName)+" - "+clean(d.service)+" Restyling Quote"):clean(d.businessName)+" - Commercial Wrap Quote")+" [ref:"+clean(d.submissionId)+"]";
+  const details=promo?["Business: "+clean(d.businessName),"Promotional product: "+clean(d.promoType),"Quantity: "+clean(d.quantity),"Product preferences: "+clean(d.productDetails),"Decoration: "+clean(d.decorationMethod),"Artwork: "+clean(d.artworkStatus),"Specific details: "+clean(d.customDetails),"Timeline: "+clean(d.timeline),"Budget: "+clean(d.budget),"Notes: "+clean(d.notes)].join("\n"):signage?["Business: "+clean(d.businessName),"Signage: "+clean(d.signageType),"Quantity: "+clean(d.quantity),"Dimensions: "+clean(d.dimensions),"Artwork: "+clean(d.artworkStatus),"Installation: "+clean(d.installation),"Banner use: "+clean(d.bannerUse),"Banner finish: "+clean(d.bannerFinish),"Printed sides: "+clean(d.signSides),"Stakes: "+clean(d.stakes),"Surface / location: "+clean(d.signSurface),"Window graphics: "+clean(d.windowCoverage),"Decal use: "+clean(d.decalUse),"Other details: "+clean(d.customDetails),"Timeline: "+clean(d.timeline),"Budget: "+clean(d.budget),"Notes: "+clean(d.notes)].join("\n"):restyling?["Service: "+clean(d.service),"Vehicle: "+clean(d.vehicleDetails),"Windows: "+clean(d.tintWindows),"Film: "+clean(d.tintFilm),"Desired color: "+clean(d.desiredColor),"Wrap coverage: "+clean(d.wrapCoverage),"Door jambs: "+clean(d.doorJambs),"PPF coverage: "+clean(d.ppfCoverage),"PPF finish: "+clean(d.ppfFinish),"Chrome areas: "+clean(d.chromeAreas),"Custom style: "+clean(d.customStyle),"Timeline: "+clean(d.timeline),"Budget: "+clean(d.budget),"Notes: "+clean(d.notes)].join("\n"):["Business: "+clean(d.businessName),"Vehicle: "+clean(d.vehicleType),"Quantity: "+clean(d.vehicleCount),"Year/make/model: "+clean(d.vehicleDetails),"Coverage: "+clean(d.coverage),"Artwork: "+clean(d.artworkStatus),"Design requested: "+(d.needsArtworkDesign==="yes"?"Yes":"No"),"Timeline: "+clean(d.timeline),"Budget: "+clean(d.budget),"Notes: "+clean(d.notes)].join("\n");
+  const dealName=(process.env.TEST_ONLY_EMAIL ? "TEST - " : "")+(promo?clean(d.businessName)+" - "+clean(d.promoType)+" Promotional Products Quote":signage?clean(d.businessName)+" - "+clean(d.signageType)+" Signage Quote":restyling?(clean(d.firstName)+" "+clean(d.lastName)+" - "+clean(d.service)+" Restyling Quote"):clean(d.businessName)+" - Commercial Wrap Quote")+" [ref:"+clean(d.submissionId)+"]";
   const matches=await hubspot("/crm/v3/objects/deals/search","POST",{filterGroups:[{filters:[{propertyName:"dealname",operator:"EQ",value:dealName}]}],limit:2,properties:["dealname"]});
   let deal=matches.results?.[0];
   const isNew=!deal;
-  if(!deal) deal=await hubspot("/crm/v3/objects/deals","POST",{properties:{dealname:dealName,pipeline:"default",dealstage:"4494748354",...(restyling||signage?{}:{service_category:"vehicle_wraps"}),description:details}});
+  if(!deal) deal=await hubspot("/crm/v3/objects/deals","POST",{properties:{dealname:dealName,pipeline:"default",dealstage:"4494748354",...(restyling||signage||promo?{}:{service_category:"vehicle_wraps"}),description:details}});
   await hubspot("/crm/v4/objects/deals/"+deal.id+"/associations/default/contacts/"+contact.id,"PUT");
   let uploadError=null,uploadedFiles=0;
   try {const uploaded=await uploadDealFiles(files,deal.id);uploadedFiles=uploaded.length;} catch(e){uploadError="File upload failed; contact shop to provide artwork";console.error("Artwork upload failed",e);}
   let emailed=false,emailError=null;
-  try { if(isNew) emailed=await sendConfirmation(email,clean(d.firstName),restyling,signage); } catch(e) {emailError="Customer email failed; review server logs";console.error(e);}
+  try { if(isNew) emailed=await sendConfirmation(email,clean(d.firstName),restyling,signage,promo); } catch(e) {emailError="Customer email failed; review server logs";console.error(e);}
   return {dealId:deal.id,contactId:contact.id,emailed,emailError,uploadedFiles,uploadError};
 }
 const server=createServer(async(req,res)=>{
@@ -114,6 +115,7 @@ const server=createServer(async(req,res)=>{
       return res.end("<!doctype html><meta charset='utf-8'><title>Gmail authorization</title><main style='font:16px Arial;max-width:700px;margin:4rem auto'><h2>Gmail authorization successful</h2><p>Copy the credential below directly into the Render environment variable <strong>GOOGLE_REFRESH_TOKEN</strong>. Never share it in chat or screenshots. Close this tab after saving.</p><textarea readonly style='width:100%;height:100px'>"+token.replace(/[&<>"]/g,"")+"</textarea></main>");
     }catch(e){console.error("Google OAuth exchange failed",e.message);return json(res,502,{error:"Gmail authorization could not be completed. Please restart."});}
   }
+  if(url.pathname==="/embed-promo" && req.method==="GET") {res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors https://creativecoatingskc.com https://www.creativecoatingskc.com"});return res.end("<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><body style=\"margin:0;background:#f2ede3\">"+PROMO_FORM+"</body>");}
   if(url.pathname==="/embed-signage" && req.method==="GET") {res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors https://creativecoatingskc.com https://www.creativecoatingskc.com"});return res.end("<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><body style=\"margin:0;background:#f2ede3\">"+SIGNAGE_FORM+"</body>");}
   if(url.pathname==="/embed-restyling" && req.method==="GET") {res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors https://creativecoatingskc.com https://www.creativecoatingskc.com"});return res.end("<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><body style=\"margin:0;background:#f2ede3\">"+RESTYLE_FORM+"</body>");}
   if(url.pathname==="/embed-form" && req.method==="GET") {res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors https://creativecoatingskc.com https://www.creativecoatingskc.com"});return res.end("<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><body style=\"margin:0;background:#f2ede3\">"+TEST_FORM+"</body>");}
@@ -121,7 +123,8 @@ const server=createServer(async(req,res)=>{
   if(url.pathname==="/health") return json(res,200,{ok:true,service:"commercial-wrap-intake",configured:!!TOKEN,emailEnabled:SEND_EMAIL});
   const restyling=url.pathname==="/api/vehicle-restyling";
   const signage=url.pathname==="/api/business-signage";
-  if(!restyling && !signage && url.pathname!=="/api/commercial-wrap") return json(res,404,{error:"Not found"});
+  const promo=url.pathname==="/api/promotional-products";
+  if(!restyling && !signage && !promo && url.pathname!=="/api/commercial-wrap") return json(res,404,{error:"Not found"});
   if(req.method==="OPTIONS") {res.writeHead(204,{"access-control-allow-origin":ORIGIN,"access-control-allow-methods":"POST, OPTIONS","access-control-allow-headers":"content-type","vary":"Origin"});return res.end();}
   if(req.method!=="POST"||(req.headers.origin!==ORIGIN && req.headers.origin!=="https://creative-coatings-hubspot-wrap-test.onrender.com")) return json(res,403,{error:"Forbidden"});
   const ip=req.headers["x-forwarded-for"]?.split(",")[0]||req.socket.remoteAddress||"unknown";
@@ -146,17 +149,18 @@ const server=createServer(async(req,res)=>{
   }
   if(d.website) return json(res,200,{ok:true});
   if(process.env.TEST_ONLY_EMAIL && clean(d.email).toLowerCase()!==process.env.TEST_ONLY_EMAIL.toLowerCase()) return json(res,403,{error:"Test service only accepts the authorized test email"});
-  if((signage?["businessName","firstName","lastName","email","phone","signageType","quantity","dimensions","artworkStatus","installation","timeline"]:restyling?["firstName","lastName","email","phone","vehicleDetails","service","timeline"]:fields).some(f=>!clean(d[f])))return json(res,400,{error:"Please complete all required fields"});
+  if((promo?["businessName","firstName","lastName","email","phone","promoType","quantity","productDetails","decorationMethod","artworkStatus","timeline","customDetails"]:signage?["businessName","firstName","lastName","email","phone","signageType","quantity","dimensions","artworkStatus","installation","timeline"]:restyling?["firstName","lastName","email","phone","vehicleDetails","service","timeline"]:fields).some(f=>!clean(d[f])))return json(res,400,{error:"Please complete all required fields"});
   if(restyling){const valid=["Window tint","Color-change wrap","Paint protection film (PPF)","Chrome delete","Two-tone / custom styling","Other"];if(!valid.includes(clean(d.service)))return json(res,400,{error:"Invalid service"});const needed={"Window tint":["tintWindows","tintFilm"],"Color-change wrap":["desiredColor","wrapCoverage","doorJambs"],"Paint protection film (PPF)":["ppfCoverage","ppfFinish"],"Chrome delete":["chromeAreas"],"Two-tone / custom styling":["customStyle"],"Other":["customStyle"]};if(needed[d.service].some(f=>!clean(d[f])))return json(res,400,{error:"Please complete the service details"});}
+  if(promo){const valid=["Drinkware / tumblers","Pens / office supplies","Bags / totes","Keychains / accessories","Event giveaways","Other promotional products"];if(!valid.includes(clean(d.promoType)))return json(res,400,{error:"Invalid product type"});if(!Number.isInteger(Number(d.quantity))||Number(d.quantity)<1||Number(d.quantity)>10000)return json(res,400,{error:"Invalid quantity"});}
   if(signage){const valid=["Banners","Yard signs","Storefront / exterior signs","Window graphics / perforated film","Wall / interior graphics","Decals / stickers","Other signage"];if(!valid.includes(clean(d.signageType)))return json(res,400,{error:"Invalid signage type"});if(!Number.isInteger(Number(d.quantity))||Number(d.quantity)<1||Number(d.quantity)>10000)return json(res,400,{error:"Invalid quantity"});const needed={"Banners":["bannerUse","bannerFinish"],"Yard signs":["signSides","stakes"],"Storefront / exterior signs":["signSurface"],"Window graphics / perforated film":["windowCoverage"],"Wall / interior graphics":["signSurface"],"Decals / stickers":["decalUse"],"Other signage":["customDetails"]};if(needed[d.signageType].some(f=>!clean(d[f])))return json(res,400,{error:"Please complete the signage details"});}
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(d.email)))return json(res,400,{error:"Invalid email"});
-  if(!restyling && !signage && (!Number.isInteger(Number(d.vehicleCount))||Number(d.vehicleCount)<1||Number(d.vehicleCount)>1000))return json(res,400,{error:"Invalid vehicle count"});
+  if(!restyling && !signage && !promo && (!Number.isInteger(Number(d.vehicleCount))||Number(d.vehicleCount)<1||Number(d.vehicleCount)>1000))return json(res,400,{error:"Invalid vehicle count"});
   if(!TOKEN)return json(res,503,{error:"Integration not configured"});
   const key=clean(d.submissionId);
   if(!/^[a-zA-Z0-9-]{12,80}$/.test(key))return json(res,400,{error:"Missing submission reference"});
   if(completed.has(key))return json(res,200,{ok:true,duplicate:true,reference:completed.get(key)});
   if(pending.has(key)) { try { const result=await pending.get(key);return json(res,200,{ok:true,duplicate:true,reference:result.dealId}); } catch {return json(res,502,{error:"The request could not be completed. Contact the shop before retrying."});} }
-  const job=processLead(d,files,restyling,signage);pending.set(key,job);
+  const job=processLead(d,files,restyling,signage,promo);pending.set(key,job);
   try{const result=await job;completed.set(key,result.dealId);return json(res,200,{ok:true,reference:result.dealId,emailSent:result.emailed,emailWarning:result.emailError,uploadedFiles:result.uploadedFiles,uploadWarning:result.uploadError});}
   catch(e){console.error("Lead processing failed",e);return json(res,502,{error:"We could not confirm your request. Please call the shop before resubmitting."});}
   finally{pending.delete(key);}
