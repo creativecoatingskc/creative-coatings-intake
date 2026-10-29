@@ -139,7 +139,7 @@ const server=createServer(async(req,res)=>{
     try {
       const request=new Request("http://localhost/upload",{method:"POST",headers:{"content-type":req.headers["content-type"]},body:Buffer.concat(chunks)});
       const form=await request.formData();d={};
-      for(const [key,value] of form.entries()){if(key==="artworkFiles"&&typeof value!=="string")files.push(value);else if(typeof value==="string")d[key]=value;}
+      for(const [key,value] of form.entries()){if(key==="artworkFiles"&&typeof value!=="string"){if(value.size>0&&value.name)files.push(value);}else if(typeof value==="string")d[key]=value;}
       if(files.length>10)return json(res,400,{error:"Maximum 10 files"});
       if(files.some(file=>file.size>25*1024*1024||file.size===0||!ALLOWED_EXTENSIONS.has(String(file.name).split(".").pop().toLowerCase())))return json(res,400,{error:"Invalid file type or size (25 MB maximum per file)"});
     }catch(e){return json(res,400,{error:"Unable to read uploaded files"});}
