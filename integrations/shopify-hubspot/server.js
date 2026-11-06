@@ -52,6 +52,55 @@ async function sendConfirmation(email,firstName,restyling=false,signage=false,pr
   if(!sendResponse.ok) throw new Error("Gmail API send failed: "+sendResponse.status+" "+(await sendResponse.text()).slice(0,400));
   return true;
 }
+
+function buildInternalDraft(d,restyling,signage,promo,general) {
+  const category=general?clean(d.category):promo?"Promotional Products":signage?"Business Signage":restyling?"Vehicle Restyling":"Commercial Vehicle Wrap";
+  const missing=[];
+  const details=general?clean(d.projectDetails):promo?clean(d.productsJson):signage?[d.signageType,d.quantity,d.dimensions,d.customDetails].map(clean).join(" | "):restyling?[d.service,d.vehicleDetails,d.wrapCoverage,d.ppfCoverage,d.tintWindows].map(clean).join(" | "):[d.vehicleType,d.vehicleCount,d.vehicleDetails,d.coverage].map(clean).join(" | ");
+  if(!clean(d.budget))missing.push("Customer budget (optional; useful for qualifying)");
+  if(!clean(d.businessName))missing.push("Business / organization name if applicable");
+  if(!clean(d.artworkStatus)&&!promo&&!restyling&&!general)missing.push("Artwork status");
+  if(!clean(d.dimensions)&&signage)missing.push("Confirm exact finished dimensions");
+  if(!clean(d.vehicleDetails)&&!signage&&!promo&&!general)missing.push("Confirm vehicle year, make, model and condition");
+  if(!clean(d.projectDetails)&&general)missing.push("Detailed project specifications");
+  const lines=[
+    "INTERNAL ESTIMATE WORKSHEET — NOT CUSTOMER-APPROVED",
+    "Category: "+category,
+    "Customer: "+clean(d.firstName)+" "+clean(d.lastName),
+    "Business: "+clean(d.businessName),
+    "Email: "+clean(d.email),
+    "Phone: "+clean(d.phone),
+    "Request: "+details,
+    "Timeline: "+clean(d.timeline),
+    "Budget: "+clean(d.budget),
+    "",
+    "DRAFT LINE ITEMS / SCOPE",
+    "1. "+category+" — scope and quantities to verify against customer request",
+    "",
+    "ESTIMATED MATERIAL COST: Pending supplier cost / exact specifications",
+    "ESTIMATED LABOR: Pending production hours",
+    "SELLING PRICE: NOT YET CALCULATED — requires approved pricing inputs",
+    "EXPECTED GROSS PROFIT: Pending validated cost and selling price",
+    "",
+    "FOLLOW-UP QUESTIONS:",
+    ...(missing.length?missing.map(x=>"- "+x):["- Confirm measurements, artwork, materials, labor and production feasibility before pricing"]),
+    "",
+    "REVIEW STATUS: Needs owner pricing review. Do not send to customer.",
+    "No automatic Printavo quote or customer price email."
+  ];
+  return lines.join("\n");
+}
+async function sendInternalDraft(body,dealId) {
+  if(!SEND_EMAIL)throw Error("Gmail sending disabled");
+  const tokenResponse=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:GOOGLE_CLIENT_ID,client_secret:GOOGLE_CLIENT_SECRET,refresh_token:GOOGLE_REFRESH_TOKEN,grant_type:"refresh_token"})});
+  const token=await tokenResponse.json();
+  if(!tokenResponse.ok||!token.access_token)throw Error("Gmail authorization failed");
+  const subject="REVIEW REQUIRED — New Quote Worksheet — HubSpot "+dealId;
+  const message=["From: Creative Coatings <info@creativecoatingskc.com>","To: sean@creativecoatingskc.com","Subject: "+subject,"MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","","HubSpot deal: https://app.hubspot.com/contacts/247796861/record/0-3/"+dealId+"\n\n"+body].join("\r\n");
+  const response=await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",{method:"POST",headers:{Authorization:"Bearer "+token.access_token,"Content-Type":"application/json"},body:JSON.stringify({raw:Buffer.from(message,"utf8").toString("base64url")})});
+  if(!response.ok)throw Error("Internal quote notification failed: "+response.status);
+}
+
 const ALLOWED_EXTENSIONS=new Set(["ai","eps","pdf","svg","png","jpg","jpeg","webp"]);
 async function uploadDealFiles(files,dealId) {
   if(!files.length)return [];
@@ -91,7 +140,17 @@ async function processLead(d,files=[],restyling=false,signage=false,promo=false,
   try {const uploaded=await uploadDealFiles(files,deal.id);uploadedFiles=uploaded.length;} catch(e){uploadError="File upload failed; contact shop to provide artwork";console.error("Artwork upload failed",e);}
   let emailed=false,emailError=null;
   try { if(isNew) emailed=await sendConfirmation(email,clean(d.firstName),restyling,signage,promo,general); } catch(e) {emailError="Customer email failed; review server logs";console.error(e);}
-  return {dealId:deal.id,contactId:contact.id,emailed,emailError,uploadedFiles,uploadError};
+  let draftError=null;
+  if(isNew) {
+    const draft=buildInternalDraft(d,restyling,signage,promo,general);
+    try {
+      const note=await hubspot("/crm/v3/objects/notes","POST",{properties:{hs_timestamp:new Date().toISOString(),hs_note_body:draft.replace(/\n/g,"<br>")}});
+      await hubspot("/crm/v4/objects/notes/"+note.id+"/associations/default/deals/"+deal.id,"PUT");
+    }catch(e){draftError="Draft note failed";console.error("Draft note failed",e);}
+    try {await sendInternalDraft(draft,deal.id);}
+    catch(e){draftError=(draftError?draftError+"; ":"")+"Internal draft email failed";console.error("Draft email failed",e);}
+  }
+  return {dealId:deal.id,contactId:contact.id,emailed,emailError,uploadedFiles,uploadError,draftError};
 }
 const server=createServer(async(req,res)=>{
   const url=new URL(req.url||"/","http://localhost");
@@ -165,7 +224,7 @@ const server=createServer(async(req,res)=>{
   if(completed.has(key))return json(res,200,{ok:true,duplicate:true,reference:completed.get(key)});
   if(pending.has(key)) { try { const result=await pending.get(key);return json(res,200,{ok:true,duplicate:true,reference:result.dealId}); } catch {return json(res,502,{error:"The request could not be completed. Contact the shop before retrying."});} }
   const job=processLead(d,files,restyling,signage,promo,general);pending.set(key,job);
-  try{const result=await job;completed.set(key,result.dealId);return json(res,200,{ok:true,reference:result.dealId,emailSent:result.emailed,emailWarning:result.emailError,uploadedFiles:result.uploadedFiles,uploadWarning:result.uploadError});}
+  try{const result=await job;completed.set(key,result.dealId);return json(res,200,{ok:true,reference:result.dealId,emailSent:result.emailed,emailWarning:result.emailError,uploadedFiles:result.uploadedFiles,uploadWarning:result.uploadError,draftWarning:result.draftError});}
   catch(e){console.error("Lead processing failed",e);return json(res,502,{error:"We could not confirm your request. Please call the shop before resubmitting."});}
   finally{pending.delete(key);}
 });
