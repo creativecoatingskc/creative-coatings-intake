@@ -204,6 +204,40 @@ const server=createServer(async(req,res)=>{
   if(url.pathname==="/embed-form" && req.method==="GET") {res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors https://creativecoatingskc.com https://www.creativecoatingskc.com"});return res.end("<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><body style=\"margin:0;background:#f2ede3\">"+TEST_FORM+"</body>");}
   if(url.pathname==="/test-form" && req.method==="GET") {res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-robots-tag":"noindex, nofollow","content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"});return res.end("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Creative Coatings Test Form</title><body style=\"background:#f2ede3\"><h3 style=\"text-align:center\">TEST ONLY — Not a live customer form</h3>"+TEST_FORM+"</body></html>");}
   if(url.pathname==="/health") return json(res,200,{ok:true,service:"commercial-wrap-intake",configured:!!TOKEN,emailEnabled:SEND_EMAIL});
+  if(url.pathname==="/api/ppf-install-request"){
+    const allowed=[ORIGIN,"https://www.creativecoatingskc.com"];
+    const origin=req.headers.origin||"";
+    const reply=(status,value)=>{res.writeHead(status,{"content-type":"application/json","cache-control":"no-store","access-control-allow-origin":allowed.includes(origin)?origin:ORIGIN,"access-control-allow-methods":"POST, OPTIONS","access-control-allow-headers":"content-type","vary":"Origin"});res.end(JSON.stringify(value));};
+    if(req.method==="OPTIONS")return reply(204,{});
+    if(req.method!=="POST"||!allowed.includes(origin))return reply(403,{error:"Forbidden"});
+    const ip=req.headers["x-forwarded-for"]?.split(",")[0]||req.socket.remoteAddress||"unknown";
+    const now=Date.now(),recent=(hits.get("ppf:"+ip)||[]).filter(t=>now-t<600000);
+    if(recent.length>=4)return reply(429,{error:"Too many requests"});
+    recent.push(now);hits.set("ppf:"+ip,recent);
+    let raw="";for await(const chunk of req){raw+=chunk;if(raw.length>8000)return reply(413,{error:"Request too large"});}
+    let d;try{d=JSON.parse(raw)}catch{return reply(400,{error:"Invalid request"})}
+    if(d.website)return reply(200,{ok:true});
+    if(["name","phone","email","year","make","model","vehicle","coverage","submissionId"].some(k=>!clean(d[k])))return reply(400,{error:"Please complete all required fields"});
+    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(clean(d.email))||clean(d.phone).replace(/\\D/g,"").length<10)return reply(400,{error:"Enter a valid phone number and email"});
+    if(!/^[a-zA-Z0-9-]{12,80}$/.test(clean(d.submissionId)))return reply(400,{error:"Invalid submission reference"});
+    if(completed.has("ppf:"+d.submissionId))return reply(200,{ok:true,duplicate:true});
+    const v=Number(d.vehicle),c=Number(d.coverage),prices=[[1150,2050,800,6200],[1250,2250,900,6800],[1350,2450,1000,7400],[1450,2650,1100,8000],[1550,2800,1200,8550]];
+    if(!Number.isInteger(v)||v<0||v>4||!Number.isInteger(c)||c<0||c>3)return reply(400,{error:"Invalid vehicle or coverage"});
+    if(!/^\\d{4}$/.test(clean(d.year))||Number(d.year)<1980||Number(d.year)>2028)return reply(400,{error:"Invalid vehicle year"});
+    if(!SEND_EMAIL||!GOOGLE_CLIENT_ID||!GOOGLE_CLIENT_SECRET||!GOOGLE_REFRESH_TOKEN)return reply(503,{error:"Request notifications are not configured"});
+    const review=v===4||Boolean(d.existing)||Boolean(d.paint)||Boolean(d.modified)||Boolean(d.custom);
+    const categories=["Coupe / Small Car","Sedan","Crossover / Small SUV","Pickup / Mid-Size SUV","Large SUV / Specialty"];
+    const packages=["Partial Front End","Full Front End","Rocker Panels","Full Vehicle"];
+    const lines=["NEW FRONTLINE PPF INSTALLATION DATE REQUEST","","Customer: "+clean(d.name),"Phone: "+clean(d.phone),"Email: "+clean(d.email),"Vehicle: "+[d.year,d.make,d.model].map(clean).join(" "),"Category: "+categories[v],"Coverage: "+packages[c],"Price: "+(review?"MANUAL REVIEW REQUIRED (baseline $"+prices[v][c]+")":"$"+prices[v][c]+" estimated"),"Manual review: "+(review?"YES":"No"),"Existing film: "+Boolean(d.existing),"Paint issues: "+Boolean(d.paint),"Modified panels: "+Boolean(d.modified),"Custom coverage: "+Boolean(d.custom),"Preferred installation date: "+clean(d.date||"ASAP"),"Alternative date: "+clean(d.alternateDate||"Not provided"),"Notes: "+clean(d.notes),"","REQUEST ONLY - NOT A CONFIRMED APPOINTMENT. Confirm pricing and scheduling before booking.","Reference: "+clean(d.submissionId)];
+    try{
+      const tokenResponse=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:GOOGLE_CLIENT_ID,client_secret:GOOGLE_CLIENT_SECRET,refresh_token:GOOGLE_REFRESH_TOKEN,grant_type:"refresh_token"})});
+      const token=await tokenResponse.json();if(!tokenResponse.ok||!token.access_token)throw Error("Gmail token refresh failed");
+      const rawMail=["From: Creative Coatings <info@creativecoatingskc.com>","To: info@creativecoatingskc.com","Subject: PPF Installation Request - "+clean(d.name).replace(/[\\r\\n]/g," "), "MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","",lines.join("\\n")].join("\\r\\n");
+      const sent=await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",{method:"POST",headers:{Authorization:"Bearer "+token.access_token,"content-type":"application/json"},body:JSON.stringify({raw:Buffer.from(rawMail).toString("base64url")})});
+      if(!sent.ok)throw Error("Gmail send failed "+sent.status);
+      completed.set("ppf:"+d.submissionId,true);return reply(200,{ok:true,manualReview:review});
+    }catch(e){console.error("PPF notification failed",e);return reply(502,{error:"Could not submit your request. Please call Creative Coatings."});}
+  }
   if(url.pathname==="/api/tint-appointment"){
     const allowed=["https://creative-coatings-tint-quote-preview.onrender.com",ORIGIN];
     const origin=req.headers.origin||"";
