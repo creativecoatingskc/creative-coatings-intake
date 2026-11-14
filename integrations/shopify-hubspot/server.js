@@ -218,12 +218,12 @@ const server=createServer(async(req,res)=>{
     let d;try{d=JSON.parse(raw)}catch{return reply(400,{error:"Invalid request"})}
     if(d.website)return reply(200,{ok:true});
     if(["name","phone","email","year","make","model","vehicle","coverage","submissionId"].some(k=>!clean(d[k])))return reply(400,{error:"Please complete all required fields"});
-    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(clean(d.email))||clean(d.phone).replace(/\\D/g,"").length<10)return reply(400,{error:"Enter a valid phone number and email"});
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(d.email))||clean(d.phone).replace(/\D/g,"").length<10)return reply(400,{error:"Enter a valid phone number and email"});
     if(!/^[a-zA-Z0-9-]{12,80}$/.test(clean(d.submissionId)))return reply(400,{error:"Invalid submission reference"});
     if(completed.has("ppf:"+d.submissionId))return reply(200,{ok:true,duplicate:true});
     const v=Number(d.vehicle),c=Number(d.coverage),prices=[[1150,2050,800,6200],[1250,2250,900,6800],[1350,2450,1000,7400],[1450,2650,1100,8000],[1550,2800,1200,8550]];
     if(!Number.isInteger(v)||v<0||v>4||!Number.isInteger(c)||c<0||c>3)return reply(400,{error:"Invalid vehicle or coverage"});
-    if(!/^\\d{4}$/.test(clean(d.year))||Number(d.year)<1980||Number(d.year)>2028)return reply(400,{error:"Invalid vehicle year"});
+    if(!/^\d{4}$/.test(clean(d.year))||Number(d.year)<1980||Number(d.year)>2028)return reply(400,{error:"Invalid vehicle year"});
     if(!SEND_EMAIL||!GOOGLE_CLIENT_ID||!GOOGLE_CLIENT_SECRET||!GOOGLE_REFRESH_TOKEN)return reply(503,{error:"Request notifications are not configured"});
     const review=v===4||Boolean(d.existing)||Boolean(d.paint)||Boolean(d.modified)||Boolean(d.custom);
     const categories=["Coupe / Small Car","Sedan","Crossover / Small SUV","Pickup / Mid-Size SUV","Large SUV / Specialty"];
@@ -232,7 +232,7 @@ const server=createServer(async(req,res)=>{
     try{
       const tokenResponse=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:GOOGLE_CLIENT_ID,client_secret:GOOGLE_CLIENT_SECRET,refresh_token:GOOGLE_REFRESH_TOKEN,grant_type:"refresh_token"})});
       const token=await tokenResponse.json();if(!tokenResponse.ok||!token.access_token)throw Error("Gmail token refresh failed");
-      const rawMail=["From: Creative Coatings <info@creativecoatingskc.com>","To: info@creativecoatingskc.com","Subject: PPF Installation Request - "+clean(d.name).replace(/[\\r\\n]/g," "), "MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","",lines.join("\\n")].join("\\r\\n");
+      const rawMail=["From: Creative Coatings <info@creativecoatingskc.com>","To: info@creativecoatingskc.com","Subject: PPF Installation Request - "+clean(d.name).replace(/[\r\n]/g," "), "MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","",lines.join("\n")].join("\r\n");
       const sent=await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",{method:"POST",headers:{Authorization:"Bearer "+token.access_token,"content-type":"application/json"},body:JSON.stringify({raw:Buffer.from(rawMail).toString("base64url")})});
       if(!sent.ok)throw Error("Gmail send failed "+sent.status);
       completed.set("ppf:"+d.submissionId,true);return reply(200,{ok:true,manualReview:review});
