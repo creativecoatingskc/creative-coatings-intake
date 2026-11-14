@@ -218,7 +218,7 @@ const server=createServer(async(req,res)=>{
     let d;try{d=JSON.parse(raw)}catch{return reply(400,{error:"Invalid request"})}
     if(d.website)return reply(200,{ok:true});
     if(["name","phone","email","vehicle","yearMakeModel","coverage","existing","condition","shade","timeline","submissionId"].some(k=>!clean(d[k])))return reply(400,{error:"Please complete all required details"});
-    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(clean(d.email))||clean(d.phone).replace(/\\D/g,"").length<10)return reply(400,{error:"Enter a valid phone number and email"});
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(d.email))||clean(d.phone).replace(/\D/g,"").length<10)return reply(400,{error:"Enter a valid phone number and email"});
     if(!/^[a-zA-Z0-9-]{12,80}$/.test(clean(d.submissionId)))return reply(400,{error:"Invalid submission reference"});
     if(completed.has("tint:"+d.submissionId))return reply(200,{ok:true,duplicate:true});
     const quote=tintQuote(d);
