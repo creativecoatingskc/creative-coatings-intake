@@ -27,7 +27,7 @@ if(data.vehicle==="Van"||data.vehicle==="Other / unusual vehicle")flags.push("Ve
 if(data.existing!=="No")flags.push("Existing tint/removal review");
 if(data.condition!=="No known issues")flags.push("Glass/vehicle condition review");
 if(data.shade!=="I know my preferred shade")flags.push("Shade consultation");
-if(!/^(19|20)\\d{2}\\s+\\S+\\s+\\S+/.test((data.yearMakeModel||"").trim()))flags.push("Confirm year, make and model");
+if(!/^(19|20)[0-9]{2} +[^ ]+ +[^ ]+/.test((data.yearMakeModel||"").trim()))flags.push("Confirm year, make and model");
 if(data.coverage==="All side and rear windows"&&data.vehicle==="Pickup truck")flags.push("Confirm pickup cab and glass configuration");
 const p=document.createElement("p");
 if(amount!==null){const price=document.createElement("h2");price.textContent="Internal test baseline: $"+amount+" — "+service;content.append(price)}
