@@ -152,6 +152,28 @@ async function processLead(d,files=[],restyling=false,signage=false,promo=false,
   }
   return {dealId:deal.id,contactId:contact.id,emailed,emailError,uploadedFiles,uploadError,draftError};
 }
+const TINT_PRICE={front:175,coupe:325,sedan:375,smallSUV:425,fullSUV:500,pickup:425,windshield:275,brow:100};
+function tintQuote(d){
+ const coverage=clean(d.coverage),vehicle=clean(d.vehicle);
+ if(coverage==="Two front side windows")return {price:175,service:"Two front windows"};
+ if(coverage==="Windshield only")return {price:275,service:"Full windshield",review:true};
+ if(coverage==="Brow / sun strip")return {price:100,service:"Windshield brow",review:true};
+ if(coverage==="All side and rear windows"){
+ const mapping={"2-door coupe":["coupe","2-door coupe"],"4-door sedan":["sedan","4-door sedan"],"Small/midsize SUV":["smallSUV","Small/midsize SUV"],"Full-size SUV":["fullSUV","Full-size SUV"],"Pickup truck":["pickup","Pickup truck"]};
+ const item=mapping[vehicle];if(item)return {price:TINT_PRICE[item[0]],service:item[1]+" sides and rear",review:vehicle==="Pickup truck"};
+ }
+ return {price:null,service:"Custom tint request",review:true};
+}
+async function sendTintAppointment(d,quote){
+ if(!GOOGLE_CLIENT_ID||!GOOGLE_CLIENT_SECRET||!GOOGLE_REFRESH_TOKEN)throw Error("Gmail credentials missing");
+ const response=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:GOOGLE_CLIENT_ID,client_secret:GOOGLE_CLIENT_SECRET,refresh_token:GOOGLE_REFRESH_TOKEN,grant_type:"refresh_token"})});
+ const token=await response.json();if(!response.ok||!token.access_token)throw Error("Gmail authentication failed");
+ const review=quote.review||clean(d.existing)!=="No"||clean(d.condition)!=="No known issues"||clean(d.shade)!=="I know my preferred shade";
+ const lines=["NEW WINDOW TINT APPOINTMENT REQUEST","Customer accepted displayed "+(review?"baseline / review-required price":"standard quote"),"","Name: "+clean(d.name),"Phone: "+clean(d.phone),"Email: "+clean(d.email),"Vehicle: "+clean(d.yearMakeModel),"Vehicle category: "+clean(d.vehicle),"Service: "+quote.service,"Film: SolarFX Black FX3 ceramic","Displayed price: "+(quote.price===null?"Needs custom quote":"$"+quote.price),"Review required: "+(review?"YES":"No"),"Coverage: "+clean(d.coverage),"Shade: "+clean(d.shade),"Existing tint removal: "+clean(d.existing),"Glass condition: "+clean(d.condition),"Preferred timeline: "+clean(d.timeline),"Notes: "+clean(d.notes),"","Appointment is REQUESTED, not booked. Confirm details and availability with customer.","Submission reference: "+clean(d.submissionId)];
+ const raw=["From: Creative Coatings <info@creativecoatingskc.com>","To: info@creativecoatingskc.com","Subject: Tint Appointment Request - "+clean(d.name),"MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","",lines.join("\n")].join("\r\n");
+ const sent=await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",{method:"POST",headers:{Authorization:"Bearer "+token.access_token,"content-type":"application/json"},body:JSON.stringify({raw:Buffer.from(raw).toString("base64url")})});
+ if(!sent.ok)throw Error("Tint appointment email failed: "+sent.status);
+}
 const server=createServer(async(req,res)=>{
   const url=new URL(req.url||"/","http://localhost");
   if(url.pathname==="/oauth/google/start" && req.method==="GET") {
@@ -182,6 +204,29 @@ const server=createServer(async(req,res)=>{
   if(url.pathname==="/embed-form" && req.method==="GET") {res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors https://creativecoatingskc.com https://www.creativecoatingskc.com"});return res.end("<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><body style=\"margin:0;background:#f2ede3\">"+TEST_FORM+"</body>");}
   if(url.pathname==="/test-form" && req.method==="GET") {res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-robots-tag":"noindex, nofollow","content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"});return res.end("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Creative Coatings Test Form</title><body style=\"background:#f2ede3\"><h3 style=\"text-align:center\">TEST ONLY — Not a live customer form</h3>"+TEST_FORM+"</body></html>");}
   if(url.pathname==="/health") return json(res,200,{ok:true,service:"commercial-wrap-intake",configured:!!TOKEN,emailEnabled:SEND_EMAIL});
+  if(url.pathname==="/api/tint-appointment"){
+    const allowed=["https://creative-coatings-tint-quote-preview.onrender.com",ORIGIN];
+    const origin=req.headers.origin||"";
+    if(req.method==="OPTIONS"){res.writeHead(204,{"access-control-allow-origin":allowed.includes(origin)?origin:ORIGIN,"access-control-allow-methods":"POST, OPTIONS","access-control-allow-headers":"content-type","vary":"Origin"});return res.end();}
+    const reply=(status,value)=>{res.writeHead(status,{"content-type":"application/json","cache-control":"no-store","access-control-allow-origin":allowed.includes(origin)?origin:ORIGIN,"vary":"Origin"});res.end(JSON.stringify(value));};
+    if(req.method!=="POST"||!allowed.includes(origin))return reply(403,{error:"Forbidden"});
+    const ip=req.headers["x-forwarded-for"]?.split(",")[0]||req.socket.remoteAddress||"unknown";
+    const now=Date.now(),recent=(hits.get("tint:"+ip)||[]).filter(t=>now-t<600000);
+    if(recent.length>=4)return reply(429,{error:"Too many requests"});
+    recent.push(now);hits.set("tint:"+ip,recent);
+    let raw="";for await(const chunk of req){raw+=chunk;if(raw.length>8000)return reply(413,{error:"Request too large"});}
+    let d;try{d=JSON.parse(raw)}catch{return reply(400,{error:"Invalid request"})}
+    if(d.website)return reply(200,{ok:true});
+    if(["name","phone","email","vehicle","yearMakeModel","coverage","existing","condition","shade","timeline","submissionId"].some(k=>!clean(d[k])))return reply(400,{error:"Please complete all required details"});
+    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(clean(d.email))||clean(d.phone).replace(/\\D/g,"").length<10)return reply(400,{error:"Enter a valid phone number and email"});
+    if(!/^[a-zA-Z0-9-]{12,80}$/.test(clean(d.submissionId)))return reply(400,{error:"Invalid submission reference"});
+    if(completed.has("tint:"+d.submissionId))return reply(200,{ok:true,duplicate:true});
+    const quote=tintQuote(d);
+    if(quote.price===null)return reply(400,{error:"Custom requests require a confirmed quote before appointment acceptance"});
+    if(!SEND_EMAIL)return reply(503,{error:"Appointment email is not configured"});
+    try{await sendTintAppointment(d,quote);completed.set("tint:"+d.submissionId,true);return reply(200,{ok:true})}
+    catch(e){console.error("Tint appointment notification failed",e);return reply(502,{error:"We couldn't send your request. Please call the shop."})}
+  }
   const restyling=url.pathname==="/api/vehicle-restyling";
   const signage=url.pathname==="/api/business-signage";
   const promo=url.pathname==="/api/promotional-products";
