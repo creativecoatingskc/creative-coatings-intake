@@ -96,7 +96,7 @@ async function sendInternalDraft(body,dealId) {
   const token=await tokenResponse.json();
   if(!tokenResponse.ok||!token.access_token)throw Error("Gmail authorization failed");
   const subject="REVIEW REQUIRED — New Quote Worksheet — HubSpot "+dealId;
-  const message=["From: Creative Coatings <info@creativecoatingskc.com>","To: sean@creativecoatingskc.com","Subject: "+subject,"MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","","HubSpot deal: https://app.hubspot.com/contacts/247796861/record/0-3/"+dealId+"\n\n"+body].join("\r\n");
+  const message=["From: Creative Coatings <info@creativecoatingskc.com>","To: info@creativecoatingskc.com","Subject: "+subject,"MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","","HubSpot deal: https://app.hubspot.com/contacts/247796861/record/0-3/"+dealId+"\n\n"+body].join("\r\n");
   const response=await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",{method:"POST",headers:{Authorization:"Bearer "+token.access_token,"Content-Type":"application/json"},body:JSON.stringify({raw:Buffer.from(message,"utf8").toString("base64url")})});
   if(!response.ok)throw Error("Internal quote notification failed: "+response.status);
 }
