@@ -215,12 +215,12 @@ const server=createServer(async(req,res)=>{
     let d;try{d=JSON.parse(raw)}catch{return reply(400,{error:"Invalid request"})}
     if(d.website)return reply(200,{ok:true});
     if(["name","phone","email","year","make","model","vehicle","package","submissionId"].some(k=>!clean(d[k])))return reply(400,{error:"Please complete all required fields"});
-    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(clean(d.email))||clean(d.phone).replace(/\\D/g,"").length<10)return reply(400,{error:"Enter a valid email and phone"});
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(d.email))||clean(d.phone).replace(/\D/g,"").length<10)return reply(400,{error:"Enter a valid email and phone"});
     if(!/^[a-zA-Z0-9-]{12,80}$/.test(clean(d.submissionId)))return reply(400,{error:"Invalid submission reference"});
     if(completed.has("ceramic:"+d.submissionId))return reply(200,{ok:true,duplicate:true});
     const v=Number(d.vehicle),p=Number(d.package),prices=[[599,1099,1599],[649,1199,1699],[749,1299,1799],[849,1399,1899]],categories=["Coupe / Small Car","Sedan","Crossover / Small SUV","Pickup / Mid-Size SUV","Large SUV / Specialty"],packages=["EXOv5 — 18 months","Crystal Serum Light + EXOv5 — 5 years","Crystal Serum Ultra — 9 years"];
     if(!Number.isInteger(v)||v<0||v>4||!Number.isInteger(p)||p<0||p>2)return reply(400,{error:"Invalid selection"});
-    if(!/^\\d{4}$/.test(clean(d.year))||Number(d.year)<1980||Number(d.year)>2028)return reply(400,{error:"Invalid vehicle year"});
+    if(!/^\d{4}$/.test(clean(d.year))||Number(d.year)<1980||Number(d.year)>2028)return reply(400,{error:"Invalid vehicle year"});
     if(!SEND_EMAIL||!GOOGLE_CLIENT_ID||!GOOGLE_CLIENT_SECRET||!GOOGLE_REFRESH_TOKEN)return reply(503,{error:"Email notifications not configured"});
     const review=v===4||p===2||Boolean(d.paint)||Boolean(d.contamination)||Boolean(d.modified);
     const price=v===4?"Custom quote": "$"+prices[v][p]+" starting price";
@@ -228,7 +228,7 @@ const server=createServer(async(req,res)=>{
     try{
       const tokenResponse=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:GOOGLE_CLIENT_ID,client_secret:GOOGLE_CLIENT_SECRET,refresh_token:GOOGLE_REFRESH_TOKEN,grant_type:"refresh_token"})});
       const token=await tokenResponse.json();if(!tokenResponse.ok||!token.access_token)throw Error("Gmail token refresh failed");
-      const rawMail=["From: Creative Coatings <info@creativecoatingskc.com>","To: info@creativecoatingskc.com","Subject: Ceramic Coating Quote Request - "+clean(d.name).replace(/[\\r\\n]/g," "),"MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","",lines.join("\\n")].join("\\r\\n");
+      const rawMail=["From: Creative Coatings <info@creativecoatingskc.com>","To: info@creativecoatingskc.com","Subject: Ceramic Coating Quote Request - "+clean(d.name).replace(/[\r\n]/g," "),"MIME-Version: 1.0","Content-Type: text/plain; charset=UTF-8","",lines.join("\n")].join("\r\n");
       const sent=await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",{method:"POST",headers:{Authorization:"Bearer "+token.access_token,"content-type":"application/json"},body:JSON.stringify({raw:Buffer.from(rawMail).toString("base64url")})});
       if(!sent.ok)throw Error("Gmail send failed "+sent.status);
       completed.set("ceramic:"+d.submissionId,true);return reply(200,{ok:true,manualReview:review});
