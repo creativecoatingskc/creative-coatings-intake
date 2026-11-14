@@ -1,0 +1,70 @@
+{
+  "version": "2026-11-13",
+  "film": "SolarFX Black FX3 ceramic",
+  "currency": "USD",
+  "status": "owner_approved_retail_baselines",
+  "customerAutoQuoteEnabled": false,
+  "prices": [
+    {
+      "id": "front_two",
+      "coverage": "Two front side windows",
+      "price": 175
+    },
+    {
+      "id": "coupe",
+      "vehicle": "2-door coupe",
+      "coverage": "Sides and rear",
+      "price": 325
+    },
+    {
+      "id": "sedan",
+      "vehicle": "4-door sedan",
+      "coverage": "Sides and rear",
+      "price": 375
+    },
+    {
+      "id": "mid_suv",
+      "vehicle": "Small/midsize SUV",
+      "coverage": "Sides and rear",
+      "price": 425
+    },
+    {
+      "id": "full_suv",
+      "vehicle": "Full-size SUV",
+      "coverage": "Sides and rear",
+      "price": 500
+    },
+    {
+      "id": "pickup",
+      "vehicle": "Pickup truck",
+      "coverage": "Sides and rear",
+      "price": 425
+    },
+    {
+      "id": "windshield",
+      "coverage": "Full windshield only",
+      "price": 275
+    },
+    {
+      "id": "brow",
+      "coverage": "Windshield brow",
+      "price": 100
+    }
+  ],
+  "requiresOwnerReview": [
+    "Existing tint removal",
+    "Specialty or oversized windshield",
+    "Unusual glass configuration",
+    "Vehicle category ambiguous",
+    "Unverified vehicle/body style",
+    "Legal suitability of windshield film or shade",
+    "Multiple services combined until bundle rules approved"
+  ],
+  "notes": [
+    "These are retail baseline prices, not final automated customer quotes.",
+    "Windshield-only service is priced separately from brow.",
+    "Van and unusual vehicles have no fixed baseline.",
+    "Verify actual material and labor margins and tint legality before enabling customer auto-quotes.",
+    "Live website intake remains unchanged."
+  ]
+}
